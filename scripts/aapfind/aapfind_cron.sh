@@ -2,15 +2,15 @@
 
 updatelatestlog () {
     # 1: latest_log
-    echo $1 > ${aapadmintools}/logs/aapfind_history
+    echo $1 > ${aapadmintools}/scripts/aapfind/logs/aapfind_history
 }
 
 getlatestlog () {
     # 1: log_type
     case $1 in
         "history")
-            if [[ -f ${aapadmintools}/logs/aapfind_history ]]; then
-                local all_logs=($(ls -t ${aapadmintools}/logs | grep '.log' | sed -e 's/\n/ /'))
+            if [[ -f ${aapadmintools}/scripts/aapfind/logs/aapfind_history ]]; then
+                local all_logs=($(ls -t ${aapadmintools}/scripts/aapfind/logs | grep '.log' | sed -e 's/\n/ /'))
                 echo ${all_logs[1]}
             else
                 echo ""
@@ -18,8 +18,8 @@ getlatestlog () {
             ;;
 
         "notify")
-            if [[ -f ${aapadmintools}/logs/aapfind_notify ]]; then
-                local notify_log=$(cat ${aapadmintools}/logs/aapfind_notify | sed -e 's/ /%ws%/g'| tr '\n' ' ')
+            if [[ -f ${aapadmintools}/scripts/aapfind/logs/aapfind_notify ]]; then
+                local notify_log=$(cat ${aapadmintools}/scripts/aapfind/logs/aapfind_notify | sed -e 's/ /%ws%/g'| tr '\n' ' ')
                 echo $notify_log
             else
                 echo ""
@@ -76,7 +76,7 @@ findmissing () {
     if [[ -z $prev_log ]]; then
         local prev_files=()
     else
-        local prev_files=($(egrep -Roh '^/.*$' ${aapadmintools}/logs/${prev_log} | sort | uniq | sed -e 's/ /%ws%/g' | tr '\n' ' '))
+        local prev_files=($(egrep -Roh '^/.*$' ${aapadmintools}/scripts/aapfind/logs/${prev_log} | sort | uniq | sed -e 's/ /%ws%/g' | tr '\n' ' '))
     fi
 
     if [[ -z $prev_notify ]]; then
@@ -134,8 +134,8 @@ searchserver () {
     find ${1}/${2} -path ${1}/${2}/${3} -prune -false -o -name ${4} -type f ! -name ${8} > ${tmp_path}/tempbak
     local all_results=$(egrep -v ${9} ${tmp_path}/tempbak)
 
-    if [[ ! -d ${aapadmintools}/logs ]]; then
-        mkdir ${aapadmintools}/logs
+    if [[ ! -d ${aapadmintools}/scripts/aapfind/logs ]]; then
+        mkdir ${aapadmintools}/scripts/aapfind/logs
     fi
 
     rm ${tmp_path}/tempbak
@@ -159,16 +159,16 @@ searchserver () {
     if [[ ! -z $new_files ]]; then
         local notify_files=($(echo $new_files))
         for file in "${notify_files[@]}"; do
-            echo "$(echo $file | sed -e 's/%ws%/ /g')" >> ${aapadmintools}/logs/aapfind_notify
+            echo "$(echo $file | sed -e 's/%ws%/ /g')" >> ${aapadmintools}/scripts/aapfind/logs/aapfind_notify
         done
     fi
 
     # Save results to logs
     if [[ $6 = true ]]; then
         description="Results for ${5} files @ ${2}:"
-        logresults "${aapadmintools}/logs" "$(date +"%c")" false false
-        logresults "${aapadmintools}/logs" $description false false
-        logresults "${aapadmintools}/logs" $all_results $7
+        logresults "${aapadmintools}/scripts/aapfind/logs" "$(date +"%c")" false false
+        logresults "${aapadmintools}/scripts/aapfind/logs" $description false false
+        logresults "${aapadmintools}/scripts/aapfind/logs" $all_results $7
     fi
 }
 
