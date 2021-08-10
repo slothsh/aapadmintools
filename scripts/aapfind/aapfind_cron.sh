@@ -188,7 +188,7 @@ if [[ -v devmount ]]; then
     smb_searchdir1="DROP/1_PRE_PRODUCTION/PENDING"
     smb_exclude1="_OLD"
     smb_searchdir2="DROP/1_PRE_PRODUCTION/SESSION"
-    smb_exclude2=" OLD"
+    smb_exclude2="_OLD"
 
     # Search queries
     find_all="*"
