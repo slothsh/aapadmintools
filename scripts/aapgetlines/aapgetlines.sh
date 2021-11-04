@@ -8,7 +8,7 @@ if [[ -v aapadmintools ]]; then
 fi
 
 # Get commandline arguments
-args=`getopt jupcl: $*`
+args=`getopt jupcle: $*`
 
 if [[ $? != 0 ]]; then
 	printf "${red}usage: please pass a path to EDL data, character name, and a line to search for\n${reset}"
@@ -33,6 +33,10 @@ for i do
 
 		-j)
 			shift; search_proj="$1"
+			shift;;
+
+		-e)
+			shift; search_episode="$1"
 			shift;;
 
 		--)
@@ -96,19 +100,31 @@ fi
 if [[ $character = "" || $search_proj = "" ]]; then
 	[ -v $character ] && printf "${red}Please provide a character name with flag -c${reset}\n" >&2
 	[ -v $search_proj ] && printf "${red}Please provide a project to search for with flag -j${reset}\n" >&2
-	exit 2
+	exit 1
+fi
+
+# Check if -e flag is a number
+re_numbers='^[0-9]+$'
+if [[ ! $search_episode =~ $re_numbers && $search_episode != "" ]]; then
+   printf "${red}Please pass a valid number for an episode with flag -e${reset}\n" >&2
+   exit 1
 fi
 
 # Clear bad characters from search path
 search_proj=$(echo $search_proj | sed -E -e "s/'|\"//g")
 
 if [[ $line == "" ]]; then line=".*"; no_colour="true"; else no_colour="false" fi
-printf "${blue}Searching for lines for $character in $search_proj...${reset}\n\n" >&2
+if [[ $search_episode != "" ]] then file_name="*_ep$search_episode.txt"; else file_name="*.txt"; fi
+
+printf "${blue}Searching for lines for $character in $search_proj...${reset}\n" >&2
 if [[ $inpath == "" ]]; then
 	# find $tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g') -name '*.txt' -and -type f | xargs -I % aapgetlines % $character 2>/dev/null | egrep "$line" --ignore-case --color=never && printf "\n${green}aapgetlines: search complete${reset}\n" >&2
 	# [[ $no_colour == "true" ]] && find $tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g') -name '*.txt' -and -type f
-	[[ $no_colour == "true" ]] && find $tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g') -name '*.txt' -and -type f | xargs -I % aapgetlines % $character 2>/dev/null | egrep "$line" --ignore-case --color=never && printf "\n${green}aapgetlines: search complete${reset}\n" >&2
-	[[ $no_colour == "false" ]] && find $tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g') -name '*.txt' -and -type f | xargs -I % aapgetlines % $character 2>/dev/null | egrep "\b$line\b" --ignore-case --color=always && printf "\n${green}aapgetlines: search complete${reset}\n" >&2
+	[[ $no_colour == "true" ]] && find $tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g') -name $file_name -and -type f | xargs -I % aapgetlines % $character 2>/dev/null | egrep "$line" --ignore-case --color=never
+	[[ $no_colour == "false" ]] && find $tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g') -name $file_name -and -type f | xargs -I % aapgetlines % $character 2>/dev/null | egrep "\b$line\b" --ignore-case --color=always
 else
-	find $inpath -name '*V2}.txt' -and -type f | xargs -I % aapgetlines % $character 2>/dev/null | egrep "\b$line\b" --ignore-case --color=always && printf "\n${green}aapgetlines: search complete${reset}\n" >&2
+	find $inpath -name '*V2}.txt' -and -type f | xargs -I % aapgetlines % $character 2>/dev/null | egrep "\b$line\b" --ignore-case --color=always
 fi
+
+printf "${green}aapgetlines: search complete${reset}\n" >&2
+exit 0
