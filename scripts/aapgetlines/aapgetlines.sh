@@ -8,41 +8,63 @@ if [[ -v aapadmintools ]]; then
 fi
 
 # Get commandline arguments
-args=`getopt jupcle: $*`
 
-if [[ $? != 0 ]]; then
-    printf "${red}usage: please pass a path to EDL data, character name, and a line to search for\n${reset}"
-    exit 2
-fi
+# if [[ $? != 0 ]]; then
+#     printf "${red}usage: please pass a path to EDL data, character name, and a line to search for\n${reset}"
+#     exit 2
+# fi
 
-for i do
-    case "$i" in
-        -p)
-            shift; inpath="$1";
-            shift;;
-        -c)
-            shift; character=$(echo "$1" | tr '[:lower:]' '[:upper:]')
-            shift;;
+while getopts 'j:u:p:c:l:e:f' arg; do
+    case $arg in
+        p)
+            inpath="$OPTARG";
+            ;;
+        c)
+            character=$(echo "$OPTARG" | tr '[:lower:]' '[:upper:]')
+            ;;
 
-        -l)
-            shift; line="$1"
-            shift;;
-        -u)
-            shift; update_cuefiles="$1"
-            shift;;
+        l)
+            line="$OPTARG"
+            ;;
+        u)
+            update_cuefiles="$OPTARG"
+            ;;
 
-        -j)
-            shift; search_proj="$1"
-            shift;;
+        j)
+            search_proj="$OPTARG"
+            ;;
 
-        -e)
-            shift; search_episode="$1"
-            shift;;
+        e)
+            search_episode="$OPTARG"
+            ;;
 
-        --)
-            shift; break;;
+        f)
+            [[ ${(P)$(( OPTIND + 1)):0:1} = "-" || ${(P)$(( OPTIND + 1)):0:1} = "" ]] && flush_local="all" || flush_local=${(P)$(( OPTIND + 1))}
+            ;;
+
+        :)
+            printf "${red}Please provide an argument for flag -${arg}${reset}\n" >&2
+            exit 1
+            ;;
+
+        ?)
+            ;;
     esac
 done
+
+if [[ $flush_local = "all" ]]; then
+    printf "${yellow}Flushing all local EDL files...${reset}\n"
+    rmpath=$tmpadmin/aapgetlines/cuefiles
+    rm $rmpath/*/**
+    rmdir $rmpath/**
+    exit 0
+elif [[ -v flush_local && -d $tmpadmin/aapgetlines/cuefiles/$(echo $flush_local | sed -e "s/ /_/g") ]]; then
+    printf "${yellow}Flushing EDL files for $flush_local...${reset}\n"
+    rmpath=$tmpadmin/aapgetlines/cuefiles/$(echo $flush_local | sed -e "s/ /_/g")
+    rm $rmpath/**
+    rmdir $rmpath
+    exit 0
+fi
 
 if [[ $update_cuefiles != "" ]]; then
     # Path variables
@@ -69,7 +91,7 @@ if [[ $update_cuefiles != "" ]]; then
         # Get folder names for local directory
         current_prod=$(basename $fetch_path | sed -e "s/ /_/g" | tr '[:upper:]' '[:lower:]' | sed -E -e "s/'|\"//g")
 
-        # Copy all cue files to local machine
+        # Create local directories
         [[ ! -d ${tmpadmin}/aapgetlines/ ]] && mkdir ${tmpadmin}/aapgetlines
         [[ ! -d ${tmpadmin}/aapgetlines/cuefiles ]] && mkdir ${tmpadmin}/aapgetlines/cuefiles
         [[ ! -d ${tmpadmin}/aapgetlines/cuefiles/${current_prod} ]] && mkdir ${tmpadmin}/aapgetlines/cuefiles/${current_prod}
@@ -78,12 +100,15 @@ if [[ $update_cuefiles != "" ]]; then
         find $fetch_path -name '*.txt' -type f -name '*V2*' > $tmp_path/tempbak &
         load $! "Fetching V2 prep files for ${smd_searchprod}"
 
+        # Copy all cue files to local machine
         printf "${blue}Copying files...${reset}\n"
         i=0
         cat -n ${tmp_path}/tempbak | while read n f; do
             prod_code=$(basename $f | egrep -o '\[\w+\]' | sed -e 's/\[//' -e 's/\]//' | tr '[:upper:]' '[:lower:]')
             ep_n=$(basename $f | egrep -o 'EP\d+' | tr '[:upper:]' '[:lower:]')
-            cp -n $f "${tmpadmin}/aapgetlines/cuefiles/${current_prod}/${prod_code}_${ep_n}.txt" 2>/dev/null && i=$(( i + 1 ))
+            season=$(basename $f | egrep -o '\bS\d\d' | tr '[:upper:]' '[:lower:]')
+            [[ $season = "" ]] && season='S01'
+            cp -n $f "${tmpadmin}/aapgetlines/cuefiles/${current_prod}/${prod_code}_${season}_${ep_n}.txt" 2>/dev/null && i=$(( i + 1 ))
         done
 
         printf "${blue}Copied $i of %s V2 files${reset}\n" $(cat ${tmp_path}/tempbak | wc -l | sed 's/ *//g')
