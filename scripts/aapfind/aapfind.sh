@@ -6,7 +6,7 @@ if [[ -v aapadmintools ]]; then
 fi
 
 load() {
-	tput civis
+    tput civis
     local text="${blue}$2\033[0K\r${reset}"
     echo -ne $text
     while kill -0 $1 2>/dev/null; do
@@ -17,9 +17,9 @@ load() {
             echo -ne $text
             sleep 0.5
         done
-	done
+    done
     echo -ne "\033[0K\r"
-	tput cnorm
+    tput cnorm
 }
 
 updatelatestlog () {
