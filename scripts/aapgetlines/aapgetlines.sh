@@ -14,7 +14,7 @@ fi
 #     exit 2
 # fi
 
-while getopts 'j:u:p:c:l:e:f' arg; do
+while getopts 'j:u:p:c:l:e:f' arg 2>/dev/null; do
     case $arg in
         p)
             inpath="$OPTARG";
