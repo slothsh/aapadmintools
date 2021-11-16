@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 
 # Colours for formatting
 if [[ -v aapadmintools ]]; then

@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 
 # Colours for formatting & server search script
 if [[ -v aapadmintools ]]; then
@@ -36,6 +36,14 @@ while getopts 'j:u:p:c:l:e:f' arg 2>/dev/null; do
 
         e)
             search_episode="$OPTARG"
+            # episode_list=()
+            # for i in ${@:$(( OPTIND - 1 ))}; do # TODO: Cater for adjoined flag synatx -e1,2,3,4
+            #     [[ ${i:0:1} = "-" ]] && break
+            #     for j in $(echo $i | sed -e 's/,$//g' -e 's/,/ /g'); do
+            #         episode_list+=$n
+            #     done
+            # done
+            # printf "$episode_list\n"
             ;;
 
         f)
