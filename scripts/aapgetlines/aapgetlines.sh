@@ -36,14 +36,20 @@ while getopts 'j:u:p:c:l:e:f' arg 2>/dev/null; do
 
         e)
             search_episode="$OPTARG"
-            # episode_list=()
-            # for i in ${@:$(( OPTIND - 1 ))}; do # TODO: Cater for adjoined flag synatx -e1,2,3,4
-            #     [[ ${i:0:1} = "-" ]] && break
-            #     for j in $(echo $i | sed -e 's/,$//g' -e 's/,/ /g'); do
-            #         episode_list+=$n
-            #     done
-            # done
-            # printf "$episode_list\n"
+            episode_list=()
+            for i in ${@:$(( OPTIND - 1 ))}; do # TODO: Cater for adjoined flag synatx -e1,2,3,4
+                [[ ${i:0:1} = "-" ]] && break
+                for j in $(echo $i | sed -e 's/,$//g' -e 's/,/ /g'); do
+                    episode_list+=$j
+                done
+            done
+            for v in $episode_list[@]; do printf "$v "; done; printf "\n"
+
+            episode_list=($(for v in $episode_list[@]; do
+                re_colon='^[0-9]+:[0-9]+$'
+                [[ $v =~ $re_colon ]] && pair=(${(s(:))v}) && range=($(seq $pair[1] $pair[2])) && echo $range || echo $v
+            done | xargs))
+            episode_list=($(for v in $episode_list[@]; do echo $v; done | sort -n | uniq))
             ;;
 
         f)
