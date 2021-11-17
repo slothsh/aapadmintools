@@ -1,0 +1,13 @@
+# Colours for formatting
+_red="\e[0;91m"
+_blue="\e[0;94m"
+_expand_bg="\e[K"
+_blue_bg="\e[0;104m${expand_bg}"
+_red_bg="\e[0;101m${expand_bg}"
+_green_bg="\e[0;102m${expand_bg}"
+_green="\e[0;92m"
+_yellow="\e[38;5;11m"
+_white="\e[0;97m"
+_bold="\e[1m"
+_uline="\e[4m"
+_reset="\e[0m"

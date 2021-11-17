@@ -1,26 +1,31 @@
 #!/usr/bin/env zsh
 
 # Colours for formatting & server search script
+disable_colours=true
 if [[ -v aapadmintools ]]; then
-    source ${aapadmintools}/scripts/shcolours.sh
+    [[ ! -f /dev/stdout ]] && source ${aapadmintools}/scripts/shcolours.sh && disable_colours=false
+    source ${aapadmintools}/scripts/shcoloursdbg.sh
     source ${aapadmintools}/scripts/loading.sh
     source ${aapadmintools}/scripts/connectsmb.sh
 fi
 
-# Get commandline arguments
-
-# if [[ $? != 0 ]]; then
-#     printf "${red}usage: please pass a path to EDL data, character name, and a line to search for\n${reset}"
-#     exit 2
-# fi
+# Parse input flags
+report_errors=false
+error_list=()
+re_valid_name="^[A-z0-9]+$"
+re_numbers='^[0-9]+$'
 
 while getopts 'j:u:p:c:l:e:f' arg 2>/dev/null; do
     case $arg in
         p)
             inpath="$OPTARG";
+            # TODO: error reporting
             ;;
         c)
-            character=$(echo "$OPTARG" | tr '[:lower:]' '[:upper:]')
+            character=$(echo "$OPTARG" | tr '[:lower:]' '[:upper:]' | sed -e 's/^[[:space:]]*//g' -e 's/ *$//g')
+
+            # Error check
+            [[ ! $character =~ $re_valid_name ]] && error_list+="Please provide a valid character name with flag -c" && report_errors=true
             ;;
 
         l)
@@ -28,14 +33,25 @@ while getopts 'j:u:p:c:l:e:f' arg 2>/dev/null; do
             ;;
         u)
             update_cuefiles="$OPTARG"
+            report_errors=false
             ;;
 
         j)
             search_proj="$OPTARG"
+
+            # Clear bad characters from search path
+            search_proj=$(echo $search_proj | sed -E -e "s/'|\"//g")
+
+            # Error check
+            [[ ! $search_proj =~ $re_valid_name ]] && error_list+="Please provide a valid project name to search for with flag -j" && report_errors=true
             ;;
 
         e)
             search_episode="$OPTARG"
+
+            # Error check
+            # if [[ ! $search_episode =~ $re_numbers ]] && error_list+="Please pass a valid number for an episode with flag -e" && report_errors=true
+
             episode_list=()
             for i in ${@:$(( OPTIND - 1 ))}; do # TODO: Cater for adjoined flag synatx -e1,2,3,4
                 [[ ${i:0:1} = "-" ]] && break
@@ -43,7 +59,6 @@ while getopts 'j:u:p:c:l:e:f' arg 2>/dev/null; do
                     episode_list+=$j
                 done
             done
-            for v in $episode_list[@]; do printf "$v "; done; printf "\n"
 
             episode_list=($(for v in $episode_list[@]; do
                 re_colon='^[0-9]+:[0-9]+$'
@@ -54,33 +69,52 @@ while getopts 'j:u:p:c:l:e:f' arg 2>/dev/null; do
 
         f)
             [[ ${(P)$(( OPTIND + 1)):0:1} = "-" || ${(P)$(( OPTIND + 1)):0:1} = "" ]] && flush_local="all" || flush_local=${(P)$(( OPTIND + 1))}
+            report_errors=false
             ;;
 
         :)
-            printf "${red}Please provide an argument for flag -${arg}${reset}\n" >&2
+            printf "${_red}Please provide an arguments for flag -${arg}${_reset}\n" >&2
             exit 1
             ;;
 
         ?)
+            printf "${red:-""}Invalid flag: ${(P)OPTIND}\n${reset:-""}"
+            exit 1
             ;;
     esac
 done
 
+# Check if essential flags were set
+if [[ ! -v update_cuefiles && ! -v flush_local ]]; then 
+    [[ ! -v character ]] && error_list+="Flag -c must be specified${reset:-""}" && report_errors=true
+    [[ ! -v search_proj ]] && error_list+="Flag -j must be specified" && report_errors=true
+fi
+
+# Error reporting for essential flags
+if [[ $report_errors = true ]]; then
+    for v in $error_list[@]; do printf "${_red}aapgetlines: $v${_reset}\n" >&2; done;
+    exit 1
+fi
+
+# Flush if a flag has been set
 if [[ $flush_local = "all" ]]; then
-    printf "${yellow}Flushing all local EDL files...${reset}\n"
+    printf "${blue:-""}Flushing all local EDL files...${reset:-""}\n"
     rmpath=$tmpadmin/aapgetlines/cuefiles
     rm $rmpath/*/**
     rmdir $rmpath/**
+    printf "${green:-""}Flushing complete!${reset:-""}\n"
     exit 0
 elif [[ -v flush_local && -d $tmpadmin/aapgetlines/cuefiles/$(echo $flush_local | sed -e "s/ /_/g") ]]; then
-    printf "${yellow}Flushing EDL files for $flush_local...${reset}\n"
+    printf "${blue:-""}Flushing EDL files for $flush_local...${reset:-""}\n"
     rmpath=$tmpadmin/aapgetlines/cuefiles/$(echo $flush_local | sed -e "s/ /_/g")
     rm $rmpath/**
     rmdir $rmpath
+    printf "${green:-""}Flushing complete!${reset:-""}\n"
     exit 0
 fi
 
-if [[ $update_cuefiles != "" ]]; then
+# Update local EDL files from remote if a flag is set
+if [[ -v update_cuefiles && $update_cuefiles != "" ]]; then
     # Path variables
     share_path="/Volumes/Public"
 
@@ -115,7 +149,7 @@ if [[ $update_cuefiles != "" ]]; then
         load $! "Fetching V2 prep files for ${smd_searchprod}"
 
         # Copy all cue files to local machine
-        printf "${blue}Copying files...${reset}\n"
+        printf "${blue:-""}Copying files...${reset:-""}\n"
         i=0
         cat -n ${tmp_path}/tempbak | while read n f; do
             prod_code=$(basename $f | egrep -o '\[\w+\]' | sed -e 's/\[//' -e 's/\]//' | tr '[:upper:]' '[:lower:]')
@@ -125,7 +159,7 @@ if [[ $update_cuefiles != "" ]]; then
             cp -n $f "${tmpadmin}/aapgetlines/cuefiles/${current_prod}/${prod_code}_${season}_${ep_n}.txt" 2>/dev/null && i=$(( i + 1 ))
         done
 
-        printf "${blue}Copied $i of %s V2 files${reset}\n" $(cat ${tmp_path}/tempbak | wc -l | sed 's/ *//g')
+        printf "${blue:-""}Copied $i of %s V2 files${reset:-""}\n" $(cat ${tmp_path}/tempbak | wc -l | sed 's/ *//g')
     fi
     
     rm ${tmp_path}/tempbak
@@ -136,34 +170,26 @@ if [[ $update_cuefiles != "" ]]; then
     exit 0
 fi
 
-if [[ $character = "" || $search_proj = "" ]]; then
-    [ -v $character ] && printf "${red}Please provide a character name with flag -c${reset}\n" >&2
-    [ -v $search_proj ] && printf "${red}Please provide a project to search for with flag -j${reset}\n" >&2
-    exit 1
-fi
+# Remove grep search colours for all lines search
+[[ $line = "" ]] && line=".*"; no_colour=true || no_colour=false
+# [[ $disable_colours = false || $no_colour = false ]] && grep_colour=never || grep_colour=always
 
-# Check if -e flag is a number
-re_numbers='^[0-9]+$'
-if [[ ! $search_episode =~ $re_numbers && $search_episode != "" ]]; then
-   printf "${red}Please pass a valid number for an episode with flag -e${reset}\n" >&2
-   exit 1
-fi
-
-# Clear bad characters from search path
-search_proj=$(echo $search_proj | sed -E -e "s/'|\"//g")
-
-if [[ $line == "" ]]; then line=".*"; no_colour="true"; else no_colour="false" fi
+# Prepare episode list & queries for searching
 if [[ $search_episode != "" ]] then file_name="*_ep$search_episode.txt"; else file_name="*.txt"; fi
+total_episodes=$(find "$tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g')" -type f | wc -l)
+[[ ${#episode_list[@]} = 0 ]] && episode_list=($(seq 1 $total_episodes)) && all_search=true || all_search=false
+# TODO : Loading text for long searches
+episode_files=($(for n in $episode_list[@]; do find "$tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g')" -name "*_ep$(printf "%02d" $n).txt" -and -type f; done))
 
-printf "${blue}Searching for lines for $character in $search_proj...${reset}\n" >&2
-if [[ $inpath == "" ]]; then
-    # find $tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g') -name '*.txt' -and -type f | xargs -I % aapgetlines % $character 2>/dev/null | egrep "$line" --ignore-case --color=never && printf "\n${green}aapgetlines: search complete${reset}\n" >&2
-    # [[ $no_colour == "true" ]] && find $tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g') -name '*.txt' -and -type f
-    [[ $no_colour == "true" ]] && find $tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g') -name $file_name -and -type f | xargs -I % aapgetlines % $character 2>/dev/null | egrep "$line" --ignore-case --color=never
-    [[ $no_colour == "false" ]] && find $tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g') -name $file_name -and -type f | xargs -I % aapgetlines % $character 2>/dev/null | egrep "\b$line\b" --ignore-case --color=always
-else
-    find $inpath -name '*V2}.txt' -and -type f | xargs -I % aapgetlines % $character 2>/dev/null | egrep "\b$line\b" --ignore-case --color=always
-fi
+printf "${_blue}Searching for lines for $character in $search_proj...${_reset}\n" >&2
+for f in $episode_files[@]; do
+    [[ $no_colour = true ]] && results=$(echo $f | xargs -I % aapgetlines % $character 2>/dev/null | egrep "$line" --ignore-case --color=${grep_colour})
+    [[ $no_colour = false ]] && results=$(echo $f | xargs -I % aapgetlines % $character 2>/dev/null | egrep "\b$line\b" --ignore-case --color=${grep_colour})
+    [[ ! $results = "" || $all_search = false ]] && printf "${blue:-""}$(basename $f):${reset:-""}\n"
+    [[ $results = "" && $all_search = false ]] && printf "${yellow:-""}no matches${reset:-""}\n\n"
+    [[ ! $results = "" ]] && printf "$results\n"
+    [[ ! $results = "" ]] && printf "${yellow:-""}total lines matched: %s${reset:-""}\n\n" $(echo $results | wc -l)
+done
 
-printf "${green}aapgetlines: search complete${reset}\n" >&2
+printf "${_green}aapgetlines: search complete${_reset}\n" >&2
 exit 0
