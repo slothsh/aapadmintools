@@ -13,9 +13,10 @@ fi
 report_errors=false
 error_list=()
 re_valid_name="^[A-z0-9]+$"
-re_numbers='^[0-9]+$'
+re_numbers="^[0-9]+$"
 
 while getopts 'j:u:p:c:l:e:f' arg 2>/dev/null; do
+    printf "$arg\n"
     case $arg in
         p)
             inpath="$OPTARG";
@@ -30,6 +31,8 @@ while getopts 'j:u:p:c:l:e:f' arg 2>/dev/null; do
 
         l)
             line="$OPTARG"
+            # printf "$OPTARG\n"
+            printf "$line\n"
             ;;
         u)
             update_cuefiles="$OPTARG"
@@ -53,11 +56,18 @@ while getopts 'j:u:p:c:l:e:f' arg 2>/dev/null; do
             # if [[ ! $search_episode =~ $re_numbers ]] && error_list+="Please pass a valid number for an episode with flag -e" && report_errors=true
 
             episode_list=()
-            for i in ${@:$(( OPTIND - 1 ))}; do # TODO: Cater for adjoined flag synatx -e1,2,3,4
-                [[ ${i:0:1} = "-" ]] && break
-                for j in $(echo $i | sed -e 's/,$//g' -e 's/,/ /g'); do
-                    episode_list+=$j
-                done
+            offset=0
+            re_episode_flag="(-e|^)[0-9]+((,|, +| +|:|$)[0-9]+)*"
+            for i in ${@}; do # TODO: Cater for adjoined flag synatx -e1,2,3,4
+                printf "index:$i\n"
+                b=$(( $# - OPTIND - 1 ))
+                printf "b:$b\n"
+                if [[ $i =~ $re_episode_flag ]]; then
+                    for j in $(echo ${(P)$(( OPTIND + b + offset ))} | sed -e 's/,$//g' -e 's/,/ /g'); do
+                        episode_list+=$j
+                    done
+                fi
+                offset=$(( offset + 1 ))
             done
 
             episode_list=($(for v in $episode_list[@]; do
@@ -65,6 +75,7 @@ while getopts 'j:u:p:c:l:e:f' arg 2>/dev/null; do
                 [[ $v =~ $re_colon ]] && pair=(${(s(:))v}) && range=($(seq $pair[1] $pair[2])) && echo $range || echo $v
             done | xargs))
             episode_list=($(for v in $episode_list[@]; do echo $v; done | sort -n | uniq))
+            printf "list:$episode_list\n"
             ;;
 
         f)
@@ -171,8 +182,8 @@ if [[ -v update_cuefiles && $update_cuefiles != "" ]]; then
 fi
 
 # Remove grep search colours for all lines search
-[[ $line = "" ]] && line=".*"; no_colour=true || no_colour=false
-# [[ $disable_colours = false || $no_colour = false ]] && grep_colour=never || grep_colour=always
+[[ $line = "" ]] && line=".*" && no_colour=true || no_colour=false
+[[ $disable_colours = true || $no_colour = true ]] && grep_colour=never || grep_colour=always
 
 # Prepare episode list & queries for searching
 if [[ $search_episode != "" ]] then file_name="*_ep$search_episode.txt"; else file_name="*.txt"; fi
@@ -183,9 +194,10 @@ episode_files=($(for n in $episode_list[@]; do find "$tmpadmin/aapgetlines/cuefi
 
 printf "${_blue}Searching for lines for $character in $search_proj...${_reset}\n" >&2
 for f in $episode_files[@]; do
-    [[ $no_colour = true ]] && results=$(echo $f | xargs -I % aapgetlines % $character 2>/dev/null | egrep "$line" --ignore-case --color=${grep_colour})
+    [[ $no_colour = true ]] && results=$(echo $f | xargs -I % aapgetlines % $character 2>/dev/null | egrep "$line" --ignore-case --color=never)
     [[ $no_colour = false ]] && results=$(echo $f | xargs -I % aapgetlines % $character 2>/dev/null | egrep "\b$line\b" --ignore-case --color=${grep_colour})
-    [[ ! $results = "" || $all_search = false ]] && printf "${blue:-""}$(basename $f):${reset:-""}\n"
+    # [[ ! $results = "" || $all_search = false ]] && printf "${blue:-""}$(basename $f):${reset:-""}\n"
+    [[ ! $results = "" || $all_search = false ]] && printf "${blue:-""}$(sed -e '1q' $f | cut -f 2):${reset:-""}\n"
     [[ $results = "" && $all_search = false ]] && printf "${yellow:-""}no matches${reset:-""}\n\n"
     [[ ! $results = "" ]] && printf "$results\n"
     [[ ! $results = "" ]] && printf "${yellow:-""}total lines matched: %s${reset:-""}\n\n" $(echo $results | wc -l)
