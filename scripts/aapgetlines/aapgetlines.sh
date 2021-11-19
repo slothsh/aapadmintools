@@ -16,7 +16,6 @@ re_valid_name="^[A-z0-9]+$"
 re_numbers="^[0-9]+$"
 
 while getopts 'j:u:p:c:l:e:f' arg 2>/dev/null; do
-    printf "$arg\n"
     case $arg in
         p)
             inpath="$OPTARG";
@@ -26,13 +25,12 @@ while getopts 'j:u:p:c:l:e:f' arg 2>/dev/null; do
             character=$(echo "$OPTARG" | tr '[:lower:]' '[:upper:]' | sed -e 's/^[[:space:]]*//g' -e 's/ *$//g')
 
             # Error check
-            [[ ! $character =~ $re_valid_name ]] && error_list+="Please provide a valid character name with flag -c" && report_errors=true
+            [[ ! $character =~ $re_valid_name ]] && error_list+="please provide a valid character name with flag -c" && report_errors=true
             ;;
 
         l)
             line="$OPTARG"
             # printf "$OPTARG\n"
-            printf "$line\n"
             ;;
         u)
             update_cuefiles="$OPTARG"
@@ -46,7 +44,8 @@ while getopts 'j:u:p:c:l:e:f' arg 2>/dev/null; do
             search_proj=$(echo $search_proj | sed -E -e "s/'|\"//g")
 
             # Error check
-            [[ ! $search_proj =~ $re_valid_name ]] && error_list+="Please provide a valid project name to search for with flag -j" && report_errors=true
+            [[ ! $search_proj =~ $re_valid_name ]] && error_list+="please provide a valid project name to search for with flag -j" && report_errors=true
+            [[ ! -d "$tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g')" ]] && error_list+="no local EDL files found for $search_proj" && report_errors=true
             ;;
 
         e)
@@ -56,26 +55,27 @@ while getopts 'j:u:p:c:l:e:f' arg 2>/dev/null; do
             # if [[ ! $search_episode =~ $re_numbers ]] && error_list+="Please pass a valid number for an episode with flag -e" && report_errors=true
 
             episode_list=()
-            offset=0
+            n=0
             re_episode_flag="(-e|^)[0-9]+((,|, +| +|:|$)[0-9]+)*"
-            for i in ${@}; do # TODO: Cater for adjoined flag synatx -e1,2,3,4
-                printf "index:$i\n"
-                b=$(( $# - OPTIND - 1 ))
-                printf "b:$b\n"
-                if [[ $i =~ $re_episode_flag ]]; then
-                    for j in $(echo ${(P)$(( OPTIND + b + offset ))} | sed -e 's/,$//g' -e 's/,/ /g'); do
+            re_not_eflag="-[^e]"
+            for i in ${@}; do
+                if [[ ${i} =~ $re_episode_flag ]]; then
+                    [[ ${i:0:2} = "-e" ]] && i=$(echo $i | sed -e 's/-e//g')
+                    for j in $(echo $i | sed -e 's/,$//g' -e 's/,/ /g'); do
                         episode_list+=$j
                     done
+                    n=$(( n + 1 ))
                 fi
-                offset=$(( offset + 1 ))
             done
+
+            # Ensure that all -e options was captured in one pass
+            [[ $n > 1 ]] && error_list+="please ensure that there are no spaces in -e flag option" && report_errors=true
 
             episode_list=($(for v in $episode_list[@]; do
                 re_colon='^[0-9]+:[0-9]+$'
                 [[ $v =~ $re_colon ]] && pair=(${(s(:))v}) && range=($(seq $pair[1] $pair[2])) && echo $range || echo $v
             done | xargs))
             episode_list=($(for v in $episode_list[@]; do echo $v; done | sort -n | uniq))
-            printf "list:$episode_list\n"
             ;;
 
         f)
@@ -185,14 +185,16 @@ fi
 [[ $line = "" ]] && line=".*" && no_colour=true || no_colour=false
 [[ $disable_colours = true || $no_colour = true ]] && grep_colour=never || grep_colour=always
 
+count_results=0
+suppress_final_matches=true
 # Prepare episode list & queries for searching
 if [[ $search_episode != "" ]] then file_name="*_ep$search_episode.txt"; else file_name="*.txt"; fi
 total_episodes=$(find "$tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g')" -type f | wc -l)
-[[ ${#episode_list[@]} = 0 ]] && episode_list=($(seq 1 $total_episodes)) && all_search=true || all_search=false
+[[ ${#episode_list[@]} = 0 ]] && episode_list=($(seq 1 $total_episodes)) && all_search=true && suppress_final_matches=false || all_search=false
 # TODO : Loading text for long searches
 episode_files=($(for n in $episode_list[@]; do find "$tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g')" -name "*_ep$(printf "%02d" $n).txt" -and -type f; done))
 
-printf "${_blue}Searching for lines for $character in $search_proj...${_reset}\n" >&2
+printf "${_blue}results for $character in $search_proj:${_reset}\n" >&2
 for f in $episode_files[@]; do
     [[ $no_colour = true ]] && results=$(echo $f | xargs -I % aapgetlines % $character 2>/dev/null | egrep "$line" --ignore-case --color=never)
     [[ $no_colour = false ]] && results=$(echo $f | xargs -I % aapgetlines % $character 2>/dev/null | egrep "\b$line\b" --ignore-case --color=${grep_colour})
@@ -203,5 +205,6 @@ for f in $episode_files[@]; do
     [[ ! $results = "" ]] && printf "${yellow:-""}total lines matched: %s${reset:-""}\n\n" $(echo $results | wc -l)
 done
 
+[[ ${#results[@]} = 0 && $suppress_final_matches = false ]] && printf "${_yellow}no matched lines${_reset}\n"
 printf "${_green}aapgetlines: search complete${_reset}\n" >&2
 exit 0
