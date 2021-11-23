@@ -111,7 +111,6 @@ while getopts 'j:u:p:c:l:e:s:f' arg 2>/dev/null; do
             ;;
     esac
 done
-shift $((OPTIND -1))
 
 # Check if essential flags were set
 if [[ ! -v update_cuefiles && ! -v flush_local ]]; then 
@@ -143,60 +142,101 @@ elif [[ -v flush_local && -d $tmpadmin/aapgetlines/cuefiles/$(echo $flush_local 
 fi
 
 # Update local EDL files from remote if a flag is set
+# TODO: Refactor this block for better updating of remote EDLs
 if [[ -v update_cuefiles && $update_cuefiles != "" ]]; then
-    # Path variables
-    share_path="/Volumes/Public"
+    if [[ -v inpath && ! $inpath = "" ]]; then
+        [[ -v tmpadmin ]] && tmp_path=${tmpadmin} || tmp_path=.
+        
+        # Check if path exists
+        [[ $update_cuefiles != "all" ]] && search_prod=$update_cuefiles
+        fetch_path=$(find ${inpath} -maxdepth 2 -type d -iname ${search_prod})
 
-    # SMB paths
-    smb_path=$devmount
-    smb_searchdir1="DROP/2_CUE_FILES"
-    [[ $update_cuefiles != "all" ]] && smd_searchprod=$update_cuefiles 
+        if [[ $fetch_path != "" ]]; then
+            # Get folder names for local directory
+            current_prod=$(basename $fetch_path | sed -e "s/ /_/g" | tr '[:upper:]' '[:lower:]' | sed -E -e "s/'|\"//g")
 
-    # Verify if SMB is mounted
-    connectsmb
+            # Create local directories
+            [[ ! -d ${tmpadmin}/aapgetlines/ ]] && mkdir ${tmpadmin}/aapgetlines
+            [[ ! -d ${tmpadmin}/aapgetlines/cuefiles ]] && mkdir ${tmpadmin}/aapgetlines/cuefiles
+            [[ ! -d ${tmpadmin}/aapgetlines/cuefiles/${current_prod} ]] && mkdir ${tmpadmin}/aapgetlines/cuefiles/${current_prod}
 
-    if [[ -v tmpadmin ]]; then
-        local tmp_path=${tmpadmin}
-    else
-        local tmp_path=.
+            # Search for V2 .txt files for given show PRE_PRODUCTION/2_CUE_FILES
+            find $fetch_path -name '*.txt' -type f -name '*V2*' > $tmp_path/tempbak &
+            load $! "Fetching V2 prep files for ${search_prod}"
+
+            # Copy all cue files to local machine
+            printf "${blue:-""}Copying files...${reset:-""}\n"
+            i=0
+            cat -n ${tmp_path}/tempbak | while read n f; do
+                prod_code=$(basename $f | egrep -o '\[\w+\]' | sed -e 's/\[//' -e 's/\]//' | tr '[:upper:]' '[:lower:]')
+                ep_n=$(basename "$f" | egrep -o 'EP[[:digit:]]+' | tr '[:upper:]' '[:lower:]') # TODO: Handle platform specific regex versions - POSIX vs Darwin POSIX
+                season=$(basename $f | egrep -o '\bS\d\d' | tr '[:upper:]' '[:lower:]')
+                [[ $season = "" ]] && season='S01'
+                cp -n $f "${tmpadmin}/aapgetlines/cuefiles/${current_prod}/${prod_code}_${season}_${ep_n}.txt" 2>/dev/null && i=$(( i + 1 ))
+            done
+
+            printf "${blue:-""}Copied $i of %s V2 files${reset:-""}\n" $(cat ${tmp_path}/tempbak | wc -l | sed 's/ *//g')
+        fi
+        
+        rm ${tmp_path}/tempbak
+
+        exit 0
+    # TODO: Refactor this block
+    elif [[ ! -v inpath ]]; then
+        # Path variables
+        share_path="/Volumes/Public"
+
+        # SMB paths
+        smb_path=$devmount
+        smb_searchdir1="DROP/2_CUE_FILES"
+        [[ $update_cuefiles != "all" ]] && smd_searchprod=$update_cuefiles 
+
+        # Verify if SMB is mounted
+        connectsmb
+
+        if [[ -v tmpadmin ]]; then
+            local tmp_path=${tmpadmin}
+        else
+            local tmp_path=.
+        fi
+
+        # Check if path exists
+        fetch_path=$(find ${smb_path}/${smb_searchdir1} -type d -iname ${smd_searchprod} -maxdepth 2)
+
+        if [[ $fetch_path != "" ]]; then
+            # Get folder names for local directory
+            current_prod=$(basename $fetch_path | sed -e "s/ /_/g" | tr '[:upper:]' '[:lower:]' | sed -E -e "s/'|\"//g")
+
+            # Create local directories
+            [[ ! -d ${tmpadmin}/aapgetlines/ ]] && mkdir ${tmpadmin}/aapgetlines
+            [[ ! -d ${tmpadmin}/aapgetlines/cuefiles ]] && mkdir ${tmpadmin}/aapgetlines/cuefiles
+            [[ ! -d ${tmpadmin}/aapgetlines/cuefiles/${current_prod} ]] && mkdir ${tmpadmin}/aapgetlines/cuefiles/${current_prod}
+
+            # Search for V2 .txt files for given show PRE_PRODUCTION/2_CUE_FILES
+            find $fetch_path -name '*.txt' -type f -name '*V2*' > $tmp_path/tempbak &
+            load $! "Fetching V2 prep files for ${smd_searchprod}"
+
+            # Copy all cue files to local machine
+            printf "${blue:-""}Copying files...${reset:-""}\n"
+            i=0
+            cat -n ${tmp_path}/tempbak | while read n f; do
+                prod_code=$(basename $f | egrep -o '\[\w+\]' | sed -e 's/\[//' -e 's/\]//' | tr '[:upper:]' '[:lower:]')
+                ep_n=$(basename $f | egrep -o 'EP\d+' | tr '[:upper:]' '[:lower:]')
+                season=$(basename $f | egrep -o '\bS\d\d' | tr '[:upper:]' '[:lower:]')
+                [[ $season = "" ]] && season='S01'
+                cp -n $f "${tmpadmin}/aapgetlines/cuefiles/${current_prod}/${prod_code}_${season}_${ep_n}.txt" 2>/dev/null && i=$(( i + 1 ))
+            done
+
+            printf "${blue:-""}Copied $i of %s V2 files${reset:-""}\n" $(cat ${tmp_path}/tempbak | wc -l | sed 's/ *//g')
+        fi
+        
+        rm ${tmp_path}/tempbak
+
+        # Unmount the share according mount point
+        disconnectsmb
+
+        exit 0
     fi
-
-    # Check if path exists
-    fetch_path=$(find ${smb_path}/${smb_searchdir1} -type d -iname ${smd_searchprod} -maxdepth 2)
-
-    if [[ $fetch_path != "" ]]; then
-        # Get folder names for local directory
-        current_prod=$(basename $fetch_path | sed -e "s/ /_/g" | tr '[:upper:]' '[:lower:]' | sed -E -e "s/'|\"//g")
-
-        # Create local directories
-        [[ ! -d ${tmpadmin}/aapgetlines/ ]] && mkdir ${tmpadmin}/aapgetlines
-        [[ ! -d ${tmpadmin}/aapgetlines/cuefiles ]] && mkdir ${tmpadmin}/aapgetlines/cuefiles
-        [[ ! -d ${tmpadmin}/aapgetlines/cuefiles/${current_prod} ]] && mkdir ${tmpadmin}/aapgetlines/cuefiles/${current_prod}
-
-        # Search for V2 .txt files for given show PRE_PRODUCTION/2_CUE_FILES
-        find $fetch_path -name '*.txt' -type f -name '*V2*' > $tmp_path/tempbak &
-        load $! "Fetching V2 prep files for ${smd_searchprod}"
-
-        # Copy all cue files to local machine
-        printf "${blue:-""}Copying files...${reset:-""}\n"
-        i=0
-        cat -n ${tmp_path}/tempbak | while read n f; do
-            prod_code=$(basename $f | egrep -o '\[\w+\]' | sed -e 's/\[//' -e 's/\]//' | tr '[:upper:]' '[:lower:]')
-            ep_n=$(basename $f | egrep -o 'EP\d+' | tr '[:upper:]' '[:lower:]')
-            season=$(basename $f | egrep -o '\bS\d\d' | tr '[:upper:]' '[:lower:]')
-            [[ $season = "" ]] && season='S01'
-            cp -n $f "${tmpadmin}/aapgetlines/cuefiles/${current_prod}/${prod_code}_${season}_${ep_n}.txt" 2>/dev/null && i=$(( i + 1 ))
-        done
-
-        printf "${blue:-""}Copied $i of %s V2 files${reset:-""}\n" $(cat ${tmp_path}/tempbak | wc -l | sed 's/ *//g')
-    fi
-    
-    rm ${tmp_path}/tempbak
-
-    # Unmount the share according mount point
-    disconnectsmb
-
-    exit 0
 fi
 
 # Remove grep search colours for all lines search
