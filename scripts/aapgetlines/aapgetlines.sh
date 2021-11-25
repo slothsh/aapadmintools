@@ -1,5 +1,15 @@
 #!/usr/bin/env zsh
 
+# -----------------------------------------------------------------+
+# Version: 0.1.2
+# Data: 25/11/2021
+# TODO: Copyright
+
+# Stefan "SoulXP" Olivier
+# File: edltool.cpp
+# Description: Small tool to parse various edit decision list files
+# -----------------------------------------------------------------+
+
 # Colours for formatting & server search script
 disable_colours=true
 if [[ -v aapadmintools ]]; then
@@ -12,6 +22,10 @@ fi
 # Save IFS
 IFS_=$IFS
 
+# Script defaults
+output_format='--output-table'
+suppress_diagnostics=false
+
 # Parse input flags
 report_errors=false
 error_list=()
@@ -19,7 +33,7 @@ re_valid_name="^[A-z0-9]+$"
 re_numbers="^[0-9]+$"
 
 # Parse input arguments
-while getopts 'j:u:p:c:l:e:s:f' arg 2>/dev/null; do
+while getopts 'j:u:p:c:l:e:s:o:f' arg 2>/dev/null; do
     case $arg in
         p)
             inpath="$OPTARG";
@@ -27,7 +41,7 @@ while getopts 'j:u:p:c:l:e:s:f' arg 2>/dev/null; do
             ;;
         c)
             character_list=()
-            re_character_flag="(-c|^)[A-z0-9_, \-]*$"
+            re_character_flag="(-c|^)([A-z0-9_, \-]|\*)*$"
             skip=false
             IFS=","
             for i in ${@}; do
@@ -98,6 +112,10 @@ while getopts 'j:u:p:c:l:e:s:f' arg 2>/dev/null; do
             ;;
 
         s)
+            ;;
+
+        o)
+            [[ ${OPTARG} = 'db' ]] && output_format='--output-db' && suppress_diagnostics=true
             ;;
 
         :)
@@ -263,13 +281,13 @@ for c in $character_list[@]; do
 done
 
 for f in $episode_files[@]; do
-    [[ $no_colour = true ]] && results=$(echo $f | xargs -I % aapgetlines % $characters 2>/dev/null | egrep "$line" --ignore-case --color=never)
-    [[ $no_colour = false ]] && results=$(echo $f | xargs -I % aapgetlines % $characters 2>/dev/null | egrep "\b$line\b" --ignore-case --color=${grep_colour})
+    [[ $no_colour = true ]] && results=$(echo $f | xargs -I % aapgetlines % $characters $output_format 2>/dev/null | egrep "$line" --ignore-case --color=never)
+    [[ $no_colour = false ]] && results=$(echo $f | xargs -I % aapgetlines % $characters $output_format 2>/dev/null | egrep "\b$line\b" --ignore-case --color=${grep_colour})
     # [[ ! $results = "" || $all_search = false ]] && printf "${blue:-""}$(basename $f):${reset:-""}\n"
-    [[ ! $results = "" || $all_search = false ]] && printf "${blue:-""}$(sed -e '1q' $f | cut -f 2):${reset:-""}\n"
-    [[ $results = "" && $all_search = false ]] && printf "${yellow:-""}no matches${reset:-""}\n\n"
-    [[ ! $results = "" ]] && printf "$results\n"
-    [[ ! $results = "" ]] && printf "${yellow:-""}total lines matched: %s${reset:-""}\n\n" $(echo $results | wc -l)
+        [[ ! $results = "" && $suppress_diagnostics = false || $all_search = false && $suppress_diagnostics = false ]] && printf "${blue:-""}$(sed -e '1q' $f | cut -f 2):${reset:-""}\n"
+        [[ $results = "" && $all_search = false && $suppress_diagnostics = false ]] && printf "${yellow:-""}no matches${reset:-""}\n\n"
+        [[ ! $results = "" ]] && printf "$results\n" 2>/dev/null
+        [[ ! $results = "" && $suppress_diagnostics = false ]] && printf "${yellow:-""}total lines matched: %s${reset:-""}\n\n" $(echo $results | wc -l)
 done
 
 [[ ${#results[@]} = 0 && $suppress_final_matches = false ]] && printf "${_yellow}no matched lines${_reset}\n"
