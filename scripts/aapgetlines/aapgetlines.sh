@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 
 # -----------------------------------------------------------------+
-# Version: 0.1.2
+# Version: 0.1.3
 # Data: 25/11/2021
 # TODO: Copyright
 
@@ -18,6 +18,9 @@ if [[ -v aapadmintools ]]; then
     source ${aapadmintools}/scripts/loading.sh
     source ${aapadmintools}/scripts/connectsmb.sh
 fi
+
+# Handle dependencies
+[[ $(which ggrep) = "ggrep not found" || $(which ggrep) = "" ]] && printf "${_red}aapgetlines: please install GNU grep dependency for MacOS${_reset}\n" && exit 1
 
 # Save IFS
 IFS_=$IFS
@@ -261,6 +264,8 @@ fi
 [[ $line = "" ]] && line=".*" && no_colour=true || no_colour=false
 [[ $disable_colours = true || $no_colour = true ]] && grep_colour=never || grep_colour=always
 
+# TODO: Escape regular expression operators for line search
+
 count_results=0
 suppress_final_matches=true
 # Prepare episode list & queries for searching
@@ -281,13 +286,13 @@ for c in $character_list[@]; do
 done
 
 for f in $episode_files[@]; do
-    [[ $no_colour = true ]] && results=$(echo $f | xargs -I % aapgetlines % $characters $output_format 2>/dev/null | egrep "$line" --ignore-case --color=never)
-    [[ $no_colour = false ]] && results=$(echo $f | xargs -I % aapgetlines % $characters $output_format 2>/dev/null | egrep "\b$line\b" --ignore-case --color=${grep_colour})
-    # [[ ! $results = "" || $all_search = false ]] && printf "${blue:-""}$(basename $f):${reset:-""}\n"
-        [[ ! $results = "" && $suppress_diagnostics = false || $all_search = false && $suppress_diagnostics = false ]] && printf "${blue:-""}$(sed -e '1q' $f | cut -f 2):${reset:-""}\n"
-        [[ $results = "" && $all_search = false && $suppress_diagnostics = false ]] && printf "${yellow:-""}no matches${reset:-""}\n\n"
-        [[ ! $results = "" ]] && printf "$results\n" 2>/dev/null
-        [[ ! $results = "" && $suppress_diagnostics = false ]] && printf "${yellow:-""}total lines matched: %s${reset:-""}\n\n" $(echo $results | wc -l)
+    [[ $no_colour = true ]] && results=$(echo $f | xargs -I % aapgetlines % $characters $output_format 2>/dev/null | ggrep -P "(?!.*\t)\b($line)\b" --ignore-case --color=never)
+    [[ $no_colour = false ]] && results=$(echo $f | xargs -I % aapgetlines % $characters $output_format 2>/dev/null | ggrep -P "(?!.*\t)\b($line)\b" --ignore-case --color=${grep_colour})
+
+    [[ ! $results = "" && $suppress_diagnostics = false || $all_search = false && $suppress_diagnostics = false ]] && printf "${blue:-""}$(sed -e '1q' $f | cut -f 2):${reset:-""}\n"
+    [[ $results = "" && $all_search = false && $suppress_diagnostics = false ]] && printf "${yellow:-""}no matches${reset:-""}\n\n"
+    [[ ! $results = "" ]] && printf "$results\n" 2>/dev/null
+    [[ ! $results = "" && $suppress_diagnostics = false ]] && printf "${yellow:-""}total lines matched: %s${reset:-""}\n\n" $(echo $results | wc -l)
 done
 
 [[ ${#results[@]} = 0 && $suppress_final_matches = false ]] && printf "${_yellow}no matched lines${_reset}\n"
