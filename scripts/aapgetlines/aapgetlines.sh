@@ -1,14 +1,36 @@
 #!/usr/bin/env zsh
 
-# -----------------------------------------------------------------+
-# Version: 0.1.3
-# Data: 25/11/2021
-# TODO: Copyright
-
+# -----------------------------------------------------------------------------+
+# MIT License
+# 
+# Copyright (c) 2021 Stefan Olivier
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# -----------------------------------------------------------------------------+
+# Version: 0.1.4
+# Data: 27/11/2021
+#
 # Stefan "SoulXP" Olivier
-# File: edltool.cpp
-# Description: Small tool to parse various edit decision list files
-# -----------------------------------------------------------------+
+# aapgetlines
+# Description: command line utility for parsing Avid Pro Tools data export files
+# -----------------------------------------------------------------------------+
 
 # Colours for formatting & server search script
 disable_colours=true
@@ -19,8 +41,13 @@ if [[ -v aapadmintools ]]; then
     source ${aapadmintools}/scripts/connectsmb.sh
 fi
 
-# Handle dependencies
-[[ $(which ggrep) = "ggrep not found" || $(which ggrep) = "" ]] && printf "${_red}aapgetlines: please install GNU grep dependency for MacOS${_reset}\n" && exit 1
+# Handle dependencies & platform
+if [[ $(uname) = "Linux" ]]; then
+    # TODO
+    alias _grep=grep
+elif [[ $(uname) = "Darwin" ]]; then
+    [[ $(which ggrep) = "ggrep not found" || $(which ggrep) = "" ]] && printf "${_red}aapgetlines: please install GNU grep dependency for MacOS${_reset}\n" >&2 && exit 1 || alias _grep=ggrep
+fi
 
 # Save IFS
 IFS_=$IFS
@@ -66,8 +93,8 @@ while getopts 'j:u:p:c:l:e:s:o:f' arg 2>/dev/null; do
             ;;
 
         l)
-            line="$OPTARG"
-            # printf "$OPTARG\n"
+            [[ $OPTARG = "" ]] && line=".*" || line=$OPTARG
+            # TODO: Escape regular expression operators for line search
             ;;
         u)
             update_cuefiles="$OPTARG"
@@ -145,7 +172,7 @@ if [[ $report_errors = true ]]; then
     exit 1
 fi
 
-# Flush if a flag has been set
+# Flush if -f flag has been set
 if [[ $flush_local = "all" ]]; then
     printf "${blue:-""}Flushing all local EDL files...${reset:-""}\n"
     rmpath=$tmpadmin/aapgetlines/cuefiles
@@ -261,20 +288,18 @@ if [[ -v update_cuefiles && $update_cuefiles != "" ]]; then
 fi
 
 # Remove grep search colours for all lines search
-[[ $line = "" ]] && line=".*" && no_colour=true || no_colour=false
+[[ $line = "" ]] && no_colour=true || no_colour=false
 [[ $disable_colours = true || $no_colour = true ]] && grep_colour=never || grep_colour=always
 
-# TODO: Escape regular expression operators for line search
-
+# Prepare episode list & queries for searching
 count_results=0
 suppress_final_matches=true
-# Prepare episode list & queries for searching
 total_episodes=$(find "$tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g')" -type f | wc -l)
 [[ ${#episode_list[@]} = 0 ]] && episode_list=($(seq 1 $total_episodes)) && all_search=true && suppress_final_matches=false || all_search=false
 # TODO : Loading text for long searches
 episode_files=($(for n in $episode_list[@]; do find "$tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g')" -name "*_ep$(printf "%02d" $n).txt" -and -type f; done))
 
-
+# Leading message
 printf "${_blue}results for $character_list in $search_proj:${_reset}\n" >&2
 
 # Build aapgetlines binary query string
@@ -285,9 +310,10 @@ for c in $character_list[@]; do
     i=$(( i + 1 ))
 done
 
+# Search block
 for f in $episode_files[@]; do
-    [[ $no_colour = true ]] && results=$(echo $f | xargs -I % aapgetlines % $characters $output_format 2>/dev/null | ggrep -P "(?!.*\t)\b($line)\b" --ignore-case --color=never)
-    [[ $no_colour = false ]] && results=$(echo $f | xargs -I % aapgetlines % $characters $output_format 2>/dev/null | ggrep -P "(?!.*\t)\b($line)\b" --ignore-case --color=${grep_colour})
+    [[ $no_colour = true ]] && results=$(echo $f | xargs -I % aapgetlines % $characters $output_format 2>/dev/null | _grep -P "(?!.*\t)\b($line)\b" --ignore-case --color=never)
+    [[ $no_colour = false ]] && results=$(echo $f | xargs -I % aapgetlines % $characters $output_format 2>/dev/null | _grep -P "(?!.*\t)\b($line)\b" --ignore-case --color=${grep_colour})
 
     [[ ! $results = "" && $suppress_diagnostics = false || $all_search = false && $suppress_diagnostics = false ]] && printf "${blue:-""}$(sed -e '1q' $f | cut -f 2):${reset:-""}\n"
     [[ $results = "" && $all_search = false && $suppress_diagnostics = false ]] && printf "${yellow:-""}no matches${reset:-""}\n\n"
@@ -295,6 +321,11 @@ for f in $episode_files[@]; do
     [[ ! $results = "" && $suppress_diagnostics = false ]] && printf "${yellow:-""}total lines matched: %s${reset:-""}\n\n" $(echo $results | wc -l)
 done
 
-[[ ${#results[@]} = 0 && $suppress_final_matches = false ]] && printf "${_yellow}no matched lines${_reset}\n"
+# Print final messages
+[[ ${#results[@]} = 0 && $suppress_final_matches = false ]] && printf "${_yellow}no matched lines${_reset}\n" >&2
 printf "${_green}aapgetlines: search complete${_reset}\n" >&2
+
+# Reset aliases
+unalias _grep
+
 exit 0
