@@ -71,25 +71,19 @@ while getopts 'j:u:p:c:l:e:s:o:f' arg 2>/dev/null; do
             ;;
         c)
             character_list=()
-            re_character_flag="(-c|^)([A-z0-9_, \-]|\*)*$"
-            skip=false
+            skip=true
             IFS=","
             for i in ${@}; do
-                if [[ ${i} =~ $re_character_flag ]]; then
-                    [[ ${i:0:2} =~ "-[^c]" ]] && skip=true
-                    [[ ${i:0:2} = "-c" ]] && i=$(echo $i | sed -e 's/-c//g') && skip=false
-                    [[ $skip = false ]] && for j in $(echo $i | sed -e 's/,$//g' -e 's/,/ /g'); do character_list+=$j; done
-                fi
+                [[ ${i:0:2} =~ "-[^c]" ]] && skip=true
+                [[ ${i:0:2} = "-c" ]] && i=$(echo $i | sed -e 's/-c//g') && skip=false
+                [[ $skip = false ]] && for j in $(echo $i | sed -e 's/,$//g' -e 's/,/ /g'); do character_list+=$j; done
             done
             IFS=$IFS_
-
+            
             # Ensure that at least 1 character was specified
             [[ $#character_list[@] = 0 ]] && error_list+="please specify at least one character to search with flag -c" && report_errors=true
 
-            character_list=($(for v in $character_list[@]; do
-                echo $v
-            done | xargs))
-            character_list=($(for v in $character_list[@]; do echo $(echo $v | tr '[:lower:]' '[:upper:]' | sed -e 's/^[[:space:]]*//g' -e 's/ *$//g'); done | sort -n | uniq))
+            character_list=($(for v in $character_list[@]; do echo $(echo $v | tr '[:lower:]' '[:upper:]'); done | sort | uniq))
             ;;
 
         l)
