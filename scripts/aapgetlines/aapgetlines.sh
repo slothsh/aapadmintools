@@ -289,7 +289,7 @@ fi
 count_results=0
 suppress_final_matches=true
 total_episodes=$(find "$tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g')" -type f | wc -l)
-[[ ${#episode_list[@]} = 0 ]] && episode_list=($(seq 1 $total_episodes)) && all_search=true && suppress_final_matches=false || all_search=false
+[[ ${#episode_list[@]} = 0 ]] && episode_list=($(seq 0 $total_episodes)) && all_search=true && suppress_final_matches=false || all_search=false
 # TODO : Loading text for long searches
 episode_files=($(for n in $episode_list[@]; do find "$tmpadmin/aapgetlines/cuefiles/$(echo $search_proj | sed -e 's/ /_/g')" -name "*_ep$(printf "%02d" $n).txt" -and -type f; done))
 
