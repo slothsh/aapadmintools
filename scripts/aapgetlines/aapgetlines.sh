@@ -156,7 +156,7 @@ done
 
 # Check if essential flags were set
 if [[ ! -v update_cuefiles && ! -v flush_local ]]; then 
-    [[ ! -v character_list ]] && error_list+="flag -c must be specified${reset:-""}" && report_errors=true
+    # [[ ! -v character_list ]] && error_list+="flag -c must be specified${reset:-""}" && report_errors=true
     [[ ! -v search_proj ]] && error_list+="flag -j must be specified" && report_errors=true
 fi
 
@@ -303,6 +303,8 @@ for c in $character_list[@]; do
     (( i < $#character_list[@] - 1 )) && characters+="$c," || characters+="$c"
     i=$(( i + 1 ))
 done
+
+[[ $characters = "" ]] && characters="*"
 
 # Search block
 for f in $episode_files[@]; do
