@@ -2,9 +2,26 @@
 
 import argparse
 import os
-from posixpath import sep
-import re
-import shutil
+from docx import Document
+
+def script_to_list(path):
+    data = []
+    absolute = os.path.abspath(path).replace('\\', '/')
+    if os.path.isfile(absolute):
+        tbl = Document(absolute).tables[0]
+        for r in tbl.rows:
+            entry = {}
+            i = 0
+            for c in r.cells:
+                if i == 0: entry['id'] = c.text
+                if i == 1: entry['tcin'] = c.text
+                if i == 2: entry['tcout'] = c.text
+                if i == 3: entry['character'] = c.text
+                if i == 4: entry['line'] = c.text
+                i += 1
+            data.append(entry)
+
+    return data
 
 def fix_tc_frame_rate(tc, fps):
     chunks = tc.split(":")
@@ -20,22 +37,22 @@ def file_names(path):
         return (codes[0], codes[1])
     return ('DEFAULT', 'PROD')
 
-def validate_tsv(file):
+def validate_ext(file, ext):
     absolute = os.path.abspath(file)
     type = os.path.splitext(os.path.basename(absolute))
-    if (os.path.isfile(absolute) and type[1] == '.tsv'): return True
+    if (os.path.isfile(absolute) and type[1] == f'.{ext}'): return True
     return False
 
-def get_tsv_files(paths):
+def get_ext_files(paths, ext):
     validated_paths = []
     for p in paths:
-        if validate_tsv(p):
+        if validate_ext(p, ext):
             f_abs = os.path.abspath(p)
             validated_paths.append(f_abs)
         elif os.path.isdir(p):
             files_ls = os.listdir(p)
             for ff in files_ls:
-                if validate_tsv(ff):
+                if validate_ext(ff, ext):
                     ff_abs = os.path.abspath(ff)
                     validated_paths.append(ff_abs)
 
@@ -45,10 +62,12 @@ def main():
     parser = argparse.ArgumentParser(description='PFT Script Un-fucker')
     parser.add_argument('paths', type=str, nargs='+', default='',
                         help='files to un-fuck')
+    parser.add_argument('--ext', type=str, nargs='?', default='docx',
+                        help='specific files to process')
     args = parser.parse_args()
 
-    all_tsv = get_tsv_files(args.paths)
-    for tsv_path in all_tsv:
+    all_data = get_ext_files(args.paths, args.ext)
+    for data_path in all_data:
         parsed_lines = [{'id': '#',
                          'start': 'Time IN',
                          'end': 'Time OUT',
@@ -56,67 +75,64 @@ def main():
                          'age': 'Actor Name',
                          'line': 'English Subtitle'}]
 
-        with open(tsv_path, 'r') as file:
-            lines = file.readlines()
-            collect = []
-            additional = {}
-            id = 0
-            prev_id = ''
-            prev_start = ''
-            prev_end = ''
-            prev_line = ''
+        data = script_to_list(data_path)
+        data.pop(0)
 
-            lines.pop(0)
+        collect = []
+        additional = {}
+        id = 0
+        prev_id = ''
+        prev_start = ''
+        prev_end = ''
+        prev_line = ''
 
-            for line in lines:
-                field = line.split('\t')
-                i = 0
-                for f in field:
-                    if i == 1:
-                        prev_start = fix_tc_frame_rate(f.strip(), '25')
-                    if i == 2:
-                        prev_end = fix_tc_frame_rate(f.strip(), '25')
+        for line in data:
+            i = 0
+            for k_cell, v_cell in line.items():
+                if i == 1:
+                    prev_start = fix_tc_frame_rate(v_cell.strip(), '25')
+                if i == 2:
+                    prev_end = fix_tc_frame_rate(v_cell.strip(), '25')
 
-                    # Character name
-                    if i == 3:
-                        characters_raw = f.split(',')
-                        increment = len(characters_raw) - 1
-                        for c in characters_raw:
-                            names = c.split('to')[0]
-                            additional['id'] = str(id)
-                            if len(characters_raw) > 1 and increment != 0:
-                                id += 1
-                                increment -= 1
-                            additional['start'] = prev_start
-                            additional['end'] = prev_end
-                            additional['character'] = names.strip().upper()
-                            additional['age'] = 'CAST ME'
-                            collect.append(dict.copy(additional))
-                            additional.clear()
+                # Character name
+                if i == 3:
+                    characters_raw = v_cell.split(',')
+                    increment = len(characters_raw) - 1
+                    for c in characters_raw:
+                        names = c.split('to')[0]
+                        additional['id'] = str(id)
+                        if len(characters_raw) > 1 and increment != 0:
+                            id += 1
+                            increment -= 1
+                        additional['start'] = prev_start
+                        additional['end'] = prev_end
+                        additional['character'] = names.strip().upper()
+                        additional['age'] = 'CAST ME'
+                        collect.append(dict.copy(additional))
+                        additional.clear()
 
-                    if i == 4:
-                        lines_raw = f.split('- ')
-                        li = 0
-                        for ll in lines_raw:
-                            collect[min(li, len(collect) - 1)]['line'] = ll.strip()
-                            li += 1
-                        if li < len(collect):
-                            for ii in range(li, len(collect)):
-                                collect[ii]['line'] = '(NO LINE)'
+                if i == 4:
+                    lines_raw = v_cell.split('- ')
+                    li = 0
+                    for ll in lines_raw:
+                        collect[min(li, len(collect) - 1)]['line'] = ll.strip().replace('\n', ' ')
+                        li += 1
+                    if li < len(collect):
+                        for ii in range(li, len(collect)):
+                            collect[ii]['line'] = '(NO LINE)'
 
-                    i += 1
-                id += 1
+                i += 1
+            id += 1
 
-                for c in collect:
-                    #if c['line'] != '(NO LINE)':
-                    parsed_lines.append(dict.copy(c))
+            for c in collect:
+                #if c['line'] != '(NO LINE)':
+                parsed_lines.append(dict.copy(c))
 
-                collect.clear()
-                additional.clear()
+            collect.clear()
+            additional.clear()
 
-            file.close()
 
-        out_tokens = file_names(tsv_path)
+        out_tokens = file_names(data_path)
         with open(f'{out_tokens[0].upper()}_{out_tokens[1].upper()}.gen.TAB', 'w') as file:
             for line in parsed_lines:
                 for k, v in line.items():
