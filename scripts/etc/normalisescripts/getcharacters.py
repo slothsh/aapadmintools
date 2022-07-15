@@ -2,8 +2,8 @@
 
 import os
 import adr
-import json
 import argparse
+
 
 def get_script_characters(path):
     names = []
@@ -13,6 +13,7 @@ def get_script_characters(path):
             names.append(d['character'])
         return names
     return names
+
 
 def main():
     parser = argparse.ArgumentParser(description='PFT Script Name Collector')
@@ -25,13 +26,14 @@ def main():
     args = parser.parse_args()
 
     paths = adr.get_ext_files(args.paths, args.ext)
-    with open(f'out.NAMES', 'a') as file:
+    with open('out.NAMES', 'a') as file:
         for path in paths:
             names = adr.normalised_script(path)
             names.pop(0)
             for n in names:
                 file.write(f'{n["character"]}\n')
         file.close()
+
 
 if __name__ == '__main__':
     main()

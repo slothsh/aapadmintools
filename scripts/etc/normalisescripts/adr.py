@@ -3,6 +3,7 @@
 import os
 from docx import Document
 
+
 def script_to_list(path):
     data = []
     absolute = os.path.abspath(path).replace('\\', '/')
@@ -12,15 +13,21 @@ def script_to_list(path):
             entry = {}
             i = 0
             for c in r.cells:
-                if i == 0: entry['id'] = c.text
-                if i == 1: entry['tcin'] = c.text
-                if i == 2: entry['tcout'] = c.text
-                if i == 3: entry['character'] = c.text
-                if i == 4: entry['line'] = c.text
+                if i == 0:
+                    entry['id'] = c.text
+                if i == 1:
+                    entry['tcin'] = c.text
+                if i == 2:
+                    entry['tcout'] = c.text
+                if i == 3:
+                    entry['character'] = c.text
+                if i == 4:
+                    entry['line'] = c.text
                 i += 1
             data.append(entry)
 
     return data
+
 
 def fix_tc_frame_rate(tc, fps):
     chunks = tc.split(":")
@@ -29,6 +36,7 @@ def fix_tc_frame_rate(tc, fps):
 
     return f'{chunks[0]}:{chunks[1]}:{chunks[2]}:{chunks[3]}'
 
+
 def file_names(path):
     if os.path.isfile(path):
         name = os.path.splitext(os.path.basename(os.path.abspath(path)))
@@ -36,11 +44,14 @@ def file_names(path):
         return (codes[0], codes[1])
     return ('DEFAULT', 'PROD')
 
+
 def validate_ext(file, ext):
     absolute = os.path.abspath(file)
     type = os.path.splitext(os.path.basename(absolute))
-    if (os.path.isfile(absolute) and type[1] == f'.{ext}'): return True
+    if (os.path.isfile(absolute) and type[1] == f'.{ext}'):
+        return True
     return False
+
 
 def get_ext_files(paths, ext):
     validated_paths = []
@@ -57,13 +68,14 @@ def get_ext_files(paths, ext):
 
     return validated_paths
 
+
 def normalised_script(path):
     parsed_lines = [{'id': '#',
-                 'start': 'Time IN',
-                 'end': 'Time OUT',
-                 'character': 'Character',
-                 'age': 'Actor Name',
-                 'line': 'English Subtitle'}]
+                     'start': 'Time IN',
+                     'end': 'Time OUT',
+                     'character': 'Character',
+                     'age': 'Actor Name',
+                     'line': 'English Subtitle'}]
 
     data = script_to_list(path)
     data.pop(0)
@@ -81,8 +93,6 @@ def normalised_script(path):
                 prev_start = fix_tc_frame_rate(v_cell.strip(), '25')
             if i == 2:
                 prev_end = fix_tc_frame_rate(v_cell.strip(), '25')
-
-            # Character name
             if i == 3:
                 characters_raw = v_cell.split(',')
                 increment = len(characters_raw) - 1
@@ -98,12 +108,12 @@ def normalised_script(path):
                     additional['age'] = 'CAST ME'
                     collect.append(dict.copy(additional))
                     additional.clear()
-
             if i == 4:
                 lines_raw = v_cell.split('- ')
                 li = 0
                 for ll in lines_raw:
-                    collect[min(li, len(collect) - 1)]['line'] = ll.strip().replace('\n', ' ')
+                    stripped = ll.strip().replace('\n', ' ')
+                    collect[min(li, len(collect) - 1)]['line'] = stripped
                     li += 1
                 if li < len(collect):
                     for ii in range(li, len(collect)):
@@ -113,12 +123,9 @@ def normalised_script(path):
         id += 1
 
         for c in collect:
-            #if c['line'] != '(NO LINE)':
             parsed_lines.append(dict.copy(c))
 
         collect.clear()
         additional.clear()
 
     return parsed_lines
-
-
