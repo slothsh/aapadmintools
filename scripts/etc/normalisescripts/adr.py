@@ -57,3 +57,68 @@ def get_ext_files(paths, ext):
 
     return validated_paths
 
+def normalised_script(path):
+    parsed_lines = [{'id': '#',
+                 'start': 'Time IN',
+                 'end': 'Time OUT',
+                 'character': 'Character',
+                 'age': 'Actor Name',
+                 'line': 'English Subtitle'}]
+
+    data = script_to_list(path)
+    data.pop(0)
+
+    collect = []
+    additional = {}
+    id = 0
+    prev_start = ''
+    prev_end = ''
+
+    for line in data:
+        i = 0
+        for k_cell, v_cell in line.items():
+            if i == 1:
+                prev_start = fix_tc_frame_rate(v_cell.strip(), '25')
+            if i == 2:
+                prev_end = fix_tc_frame_rate(v_cell.strip(), '25')
+
+            # Character name
+            if i == 3:
+                characters_raw = v_cell.split(',')
+                increment = len(characters_raw) - 1
+                for c in characters_raw:
+                    names = c.split('to')[0]
+                    additional['id'] = str(id)
+                    if len(characters_raw) > 1 and increment != 0:
+                        id += 1
+                        increment -= 1
+                    additional['start'] = prev_start
+                    additional['end'] = prev_end
+                    additional['character'] = names.strip().upper()
+                    additional['age'] = 'CAST ME'
+                    collect.append(dict.copy(additional))
+                    additional.clear()
+
+            if i == 4:
+                lines_raw = v_cell.split('- ')
+                li = 0
+                for ll in lines_raw:
+                    collect[min(li, len(collect) - 1)]['line'] = ll.strip().replace('\n', ' ')
+                    li += 1
+                if li < len(collect):
+                    for ii in range(li, len(collect)):
+                        collect[ii]['line'] = '(NO LINE)'
+
+            i += 1
+        id += 1
+
+        for c in collect:
+            #if c['line'] != '(NO LINE)':
+            parsed_lines.append(dict.copy(c))
+
+        collect.clear()
+        additional.clear()
+
+    return parsed_lines
+
+
