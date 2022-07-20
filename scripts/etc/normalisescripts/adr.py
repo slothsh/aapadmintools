@@ -3,6 +3,7 @@
 import os
 from docx import Document
 
+
 def script_to_list(path):
     data = []
     absolute = os.path.abspath(path).replace('\\', '/')
@@ -12,15 +13,21 @@ def script_to_list(path):
             entry = {}
             i = 0
             for c in r.cells:
-                if i == 0: entry['id'] = c.text
-                if i == 1: entry['tcin'] = c.text
-                if i == 2: entry['tcout'] = c.text
-                if i == 3: entry['character'] = c.text
-                if i == 4: entry['line'] = c.text
+                if i == 0:
+                    entry['id'] = c.text
+                if i == 1:
+                    entry['tcin'] = c.text
+                if i == 2:
+                    entry['tcout'] = c.text
+                if i == 3:
+                    entry['character'] = c.text
+                if i == 4:
+                    entry['line'] = c.text
                 i += 1
             data.append(entry)
 
     return data
+
 
 def fix_tc_frame_rate(tc, fps):
     chunks = tc.split(":")
@@ -29,6 +36,7 @@ def fix_tc_frame_rate(tc, fps):
 
     return f'{chunks[0]}:{chunks[1]}:{chunks[2]}:{chunks[3]}'
 
+
 def file_names(path):
     if os.path.isfile(path):
         name = os.path.splitext(os.path.basename(os.path.abspath(path)))
@@ -36,11 +44,16 @@ def file_names(path):
         return (codes[0], codes[1])
     return ('DEFAULT', 'PROD')
 
+
 def validate_ext(file, ext):
     absolute = os.path.abspath(file)
     type = os.path.splitext(os.path.basename(absolute))
-    if (os.path.isfile(absolute) and type[1] == f'.{ext}'): return True
+    file_rel = f'./{type[0]}{type[1]}'
+    print(file, os.path.isfile(absolute), type[1] == f'.{ext}')
+    if (os.path.isfile(absolute) and type[1] == f'.{ext}'):
+        return True
     return False
+
 
 def get_ext_files(paths, ext):
     validated_paths = []
@@ -57,13 +70,29 @@ def get_ext_files(paths, ext):
 
     return validated_paths
 
+
+def get_column_data(path, col):
+    data = script_to_list(path)
+    data.pop(0)
+
+    collect = []
+    for line in data:
+        i = 0
+        for k_cell, v_cell in line.items():
+            if i == col:
+                collect.append(v_cell)
+            i += 1
+
+    return collect
+
+
 def normalised_script(path):
     parsed_lines = [{'id': '#',
-                 'start': 'Time IN',
-                 'end': 'Time OUT',
-                 'character': 'Character',
-                 'age': 'Actor Name',
-                 'line': 'English Subtitle'}]
+                     'start': 'Time IN',
+                     'end': 'Time OUT',
+                     'character': 'Character',
+                     'age': 'Actor Name',
+                     'line': 'English Subtitle'}]
 
     data = script_to_list(path)
     data.pop(0)
@@ -113,12 +142,9 @@ def normalised_script(path):
         id += 1
 
         for c in collect:
-            #if c['line'] != '(NO LINE)':
             parsed_lines.append(dict.copy(c))
 
         collect.clear()
         additional.clear()
 
     return parsed_lines
-
-
