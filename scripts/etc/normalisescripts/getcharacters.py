@@ -50,7 +50,6 @@ def group_items(items, size):
 
     return groups
 
-<<<<<<< HEAD
 
 def get_script_characters(path):
     names = []
@@ -60,8 +59,6 @@ def get_script_characters(path):
             names.append(d['character'])
         return names
     return names
-=======
->>>>>>> 318e9fd10519caedbc7ae6d073c94b021b79e7d9
 
 
 def main():
@@ -78,7 +75,6 @@ def main():
                         help='maximum allowed threads in thread pool')
     args = parser.parse_args()
 
-<<<<<<< HEAD
     paths = adr.get_ext_files(args.paths, args.ext)
     with open('out.NAMES', 'a') as file:
         for path in paths:
@@ -87,7 +83,7 @@ def main():
             for n in names:
                 file.write(f'{n["character"]}\n')
         file.close()
-=======
+
     write_type = args.write_type.lower()
     valid_write_types = ['a', 'w', 'ab', 'wb']
     if write_type not in valid_write_types:
@@ -117,8 +113,6 @@ def main():
         prev = False
         for t in pool:
             keep_alive = prev or t.is_alive()
-
->>>>>>> 318e9fd10519caedbc7ae6d073c94b021b79e7d9
 
 
 if __name__ == '__main__':
