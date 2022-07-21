@@ -5,6 +5,7 @@ import argparse
 import math
 import os
 import threading
+import multiprocessing as mp
 
 def split_characters(names):
     collect = []
@@ -24,7 +25,7 @@ def split_characters(names):
 def process(paths, ext, prefix):
     for p in paths:
         name = os.path.basename(p).split('.')[0]
-        with open(f'{name}_out.names', 'w') as file:
+        with open(f'{prefix}_{name}_out.names', 'w') as file:
             names = sorted(set(split_characters(adr.get_column_data(p, 3))))
             for n in names:
                 file.write(f'{n}\n')
@@ -71,8 +72,8 @@ def main():
                         help='specific files to process')
     parser.add_argument('--write-type', type=str, nargs='?', default='a',
                         help='write to file can be a or w')
-    parser.add_argument('--max-threads', type=int, nargs='?', default=4,
-                        help='maximum allowed threads in thread pool')
+    parser.add_argument('--process-count', type=int, nargs='?', default=4,
+                        help='total processes to spawn in pool; cannot be higher than system total')
     args = parser.parse_args()
 
     write_type = args.write_type.lower()
@@ -80,29 +81,29 @@ def main():
     if write_type not in valid_write_types:
         write_type = 'a'
 
-    max_threads = min(max(1, args.max_threads), 16)
+    max_proc = min(max(1, args.process_count), os.cpu_count())
+    print(f'total cpus: {os.cpu_count()}, user selected: {max_proc}')
 
     all_paths = adr.get_ext_files(args.paths, args.ext)
-    group_size = math.ceil(len(all_paths) / max_threads)
+    group_size = math.ceil(len(all_paths) / max_proc)
     grouped_paths = group_items(all_paths, group_size)
 
     print(f'group size: {group_size}')
-    print(grouped_paths)
 
     pool = []
     for i, p in enumerate(grouped_paths):
-        thread = threading.Thread(target=process, args=(p, args.ext, f'thread{i}'))
-        pool.append(thread)
+        proc = mp.Process(target=process, args=(p, args.ext, f'process{i}'))
+        pool.append(proc)
 
-    for t in pool:
-        t.start()
+    for p in pool:
+        p.start()
 
     keep_alive = True
     print('Processing Files...')
     while keep_alive:
         prev = False
-        for t in pool:
-            keep_alive = prev or t.is_alive()
+        for p in pool:
+            keep_alive = prev or p.is_alive()
 
 
 if __name__ == '__main__':
