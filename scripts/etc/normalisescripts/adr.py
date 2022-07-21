@@ -48,6 +48,11 @@ def file_names(path):
 def validate_ext(file, ext):
     absolute = os.path.abspath(file)
     type = os.path.splitext(os.path.basename(absolute))
+<<<<<<< HEAD
+=======
+    file_rel = f'./{type[0]}{type[1]}'
+    print(file, os.path.isfile(absolute), type[1] == f'.{ext}')
+>>>>>>> 318e9fd10519caedbc7ae6d073c94b021b79e7d9
     if (os.path.isfile(absolute) and type[1] == f'.{ext}'):
         return True
     return False
@@ -69,6 +74,24 @@ def get_ext_files(paths, ext):
     return validated_paths
 
 
+<<<<<<< HEAD
+=======
+def get_column_data(path, col):
+    data = script_to_list(path)
+    data.pop(0)
+
+    collect = []
+    for line in data:
+        i = 0
+        for k_cell, v_cell in line.items():
+            if i == col:
+                collect.append(v_cell)
+            i += 1
+
+    return collect
+
+
+>>>>>>> 318e9fd10519caedbc7ae6d073c94b021b79e7d9
 def normalised_script(path):
     parsed_lines = [{'id': '#',
                      'start': 'Time IN',
