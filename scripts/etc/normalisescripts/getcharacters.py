@@ -75,15 +75,6 @@ def main():
                         help='maximum allowed threads in thread pool')
     args = parser.parse_args()
 
-    paths = adr.get_ext_files(args.paths, args.ext)
-    with open('out.NAMES', 'a') as file:
-        for path in paths:
-            names = adr.normalised_script(path)
-            names.pop(0)
-            for n in names:
-                file.write(f'{n["character"]}\n')
-        file.close()
-
     write_type = args.write_type.lower()
     valid_write_types = ['a', 'w', 'ab', 'wb']
     if write_type not in valid_write_types:
@@ -97,7 +88,6 @@ def main():
 
     print(f'group size: {group_size}')
     print(grouped_paths)
-    return
 
     pool = []
     for i, p in enumerate(grouped_paths):

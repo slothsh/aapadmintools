@@ -48,7 +48,6 @@ def file_names(path):
 def validate_ext(file, ext):
     absolute = os.path.abspath(file)
     type = os.path.splitext(os.path.basename(absolute))
-    print(file, os.path.isfile(absolute), type[1] == f'.{ext}')
     if (os.path.isfile(absolute) and type[1] == f'.{ext}'):
         return True
     return False
@@ -61,10 +60,11 @@ def get_ext_files(paths, ext):
             f_abs = os.path.abspath(p)
             validated_paths.append(f_abs)
         elif os.path.isdir(p):
+            p_abs = os.path.abspath(p)
             files_ls = os.listdir(p)
             for ff in files_ls:
-                if validate_ext(ff, ext):
-                    ff_abs = os.path.abspath(ff)
+                ff_abs = os.path.join(p_abs, ff)
+                if validate_ext(ff_abs, ext):
                     validated_paths.append(ff_abs)
 
     return validated_paths
