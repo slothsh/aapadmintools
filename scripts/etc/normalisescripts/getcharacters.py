@@ -3,9 +3,9 @@
 import adr
 import argparse
 import math
-import os
-import threading
 import multiprocessing as mp
+import os
+import sys
 
 def split_characters(names):
     collect = []
@@ -22,10 +22,11 @@ def split_characters(names):
     return collect
 
 
-def process(paths, ext, prefix):
+def process(paths, ext, out, prefix):
     for p in paths:
         name = os.path.basename(p).split('.')[0]
-        with open(f'{prefix}_{name}_out.names', 'w') as file:
+        out_path = os.path.join(out, f'{prefix}_{name}_out.names')
+        with open(out_path, 'w') as file:
             names = sorted(set(split_characters(adr.get_column_data(p, 3))))
             for n in names:
                 file.write(f'{n}\n')
@@ -66,8 +67,8 @@ def main():
     parser = argparse.ArgumentParser(description='PFT Script Name Collector')
     parser.add_argument('paths', type=str, nargs='+', default='',
                         help='files to for characters to collect')
-    parser.add_argument('--out', type=str, nargs='?', default='out.NAMES',
-                        help='where to output the collected names')
+    parser.add_argument('--out', type=str, nargs='?', default='.',
+                        help='path to output directory to save files containing collected names')
     parser.add_argument('--ext', type=str, nargs='?', default='docx',
                         help='specific files to process')
     parser.add_argument('--write-type', type=str, nargs='?', default='a',
@@ -81,6 +82,11 @@ def main():
     if write_type not in valid_write_types:
         write_type = 'a'
 
+    valid_out_path, out_path = adr.validate_directory(args.out)
+    if not valid_out_path:
+        print(f'Please specify a valid output path\nspecified path: {out_path}')
+        sys.exit(1)
+
     max_proc = min(max(1, args.process_count), os.cpu_count())
     print(f'total cpus: {os.cpu_count()}, user selected: {max_proc}')
 
@@ -92,7 +98,7 @@ def main():
 
     pool = []
     for i, p in enumerate(grouped_paths):
-        proc = mp.Process(target=process, args=(p, args.ext, f'process{i}'))
+        proc = mp.Process(target=process, args=(p, args.ext, out_path, f'process{i}'))
         pool.append(proc)
 
     for p in pool:

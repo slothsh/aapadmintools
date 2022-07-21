@@ -85,6 +85,12 @@ def get_column_data(path, col):
     return collect
 
 
+def validate_directory(path):
+    path_abs = os.path.abspath(path)
+    is_valid = os.path.isdir(path_abs)
+    return is_valid, path_abs
+
+
 def normalised_script(path):
     parsed_lines = [{'id': '#',
                      'start': 'Time IN',
