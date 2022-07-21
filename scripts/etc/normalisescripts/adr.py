@@ -4,27 +4,43 @@ import os
 from docx import Document
 
 
-def script_to_list(path):
+def validate_docxtbl_header(all_tables, headers):
+    valid = False
+    index = 0
+    for i, tbl in enumerate(all_tables):
+        first_row = tbl.rows[0].cells
+        if len(first_row) == len(headers):
+            for j, h in enumerate(headers):
+                print(j, h, first_row[j].text)
+                valid = valid or h == first_row[j].text
+            if valid:
+                return True, i
+    return False, 0
+
+
+def script_to_list(path, headers = []):
     data = []
     absolute = os.path.abspath(path).replace('\\', '/')
     if os.path.isfile(absolute):
-        tbl = Document(absolute).tables[0]
-        for r in tbl.rows:
-            entry = {}
-            i = 0
-            for c in r.cells:
-                if i == 0:
-                    entry['id'] = c.text
-                if i == 1:
-                    entry['tcin'] = c.text
-                if i == 2:
-                    entry['tcout'] = c.text
-                if i == 3:
-                    entry['character'] = c.text
-                if i == 4:
-                    entry['line'] = c.text
-                i += 1
-            data.append(entry)
+        all_tables = Document(absolute).tables
+        valid_tbl, tbl_index = validate_docxtbl_header(all_tables, headers)
+
+        if valid_tbl:
+            tbl = all_tables[tbl_index]
+            for r in tbl.rows:
+                entry = {}
+                for i, c in enumerate(r.cells):
+                    if i == 0:
+                        entry['id'] = c.text
+                    if i == 1:
+                        entry['tcin'] = c.text
+                    if i == 2:
+                        entry['tcout'] = c.text
+                    if i == 3:
+                        entry['character'] = c.text
+                    if i == 4:
+                        entry['line'] = c.text
+                data.append(entry)
 
     return data
 
@@ -72,6 +88,9 @@ def get_ext_files(paths, ext):
 
 def get_column_data(path, col):
     data = script_to_list(path)
+    if len(data) == 0:
+        return []
+
     data.pop(0)
 
     collect = []
