@@ -22,16 +22,23 @@ def split_characters(names):
     return collect
 
 
-def process(paths, ext, out, prefix, dry_run):
+def process(paths, ext, out, prefix, split_names, dry_run):
     for p in paths:
         name = os.path.basename(p).split('.')[0]
         out_path = os.path.join(out, f'{prefix}_{name}_out.names')
-        names = sorted(set(split_characters(adr.get_column_data(p, 3))))
+        raw_names = adr.get_column_data(p, 3)
+        if split_names is True:
+            raw_names = set(split_characters(raw_names))
+        print(raw_names)
         if not dry_run:
             with open(out_path, 'w') as file:
-                for n in names:
+                for n in raw_names:
                     file.write(f'{n}\n')
                 file.close()
+        else:
+            for n in raw_names:
+                print(n)
+
 
 
 def group_items(items, size):
@@ -78,6 +85,8 @@ def main():
                         help='total processes to spawn in pool; cannot be higher than system total')
     parser.add_argument('--dry-run', action='store_true',
                         help='perform a dry run')
+    parser.add_argument('--split-names', action='store_true',
+                        help='split names of characters according to stop words')
     args = parser.parse_args()
 
     write_type = args.write_type.lower()
@@ -101,7 +110,12 @@ def main():
 
     pool = []
     for i, p in enumerate(grouped_paths):
-        proc = mp.Process(target=process, args=(p, args.ext, out_path, f'process{i}', args.dry_run))
+        proc = mp.Process(target=process, args=(p,
+                                                args.ext,
+                                                out_path,
+                                                f'process{i}',
+                                                args.split_names,
+                                                args.dry_run))
         pool.append(proc)
 
     for p in pool:

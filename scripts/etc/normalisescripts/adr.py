@@ -1,46 +1,78 @@
 #!/usr/bin/env python3
 
 import os
+import json
+import tableschema as tblsh
 from docx import Document
 
 
-def validate_docxtbl_header(all_tables, headers):
-    valid = False
-    index = 0
-    for i, tbl in enumerate(all_tables):
-        first_row = tbl.rows[0].cells
-        if len(first_row) == len(headers):
-            for j, h in enumerate(headers):
-                print(j, h, first_row[j].text)
-                valid = valid or h == first_row[j].text
-            if valid:
+def match_tblheaders(header, key, synonyms=[]):
+    for i, c in enumerate(header.cells):
+        for s in synonyms:
+            if c.text == s:
                 return True, i
     return False, 0
 
 
-def script_to_list(path, headers = []):
-    data = []
-    absolute = os.path.abspath(path).replace('\\', '/')
-    if os.path.isfile(absolute):
-        all_tables = Document(absolute).tables
-        valid_tbl, tbl_index = validate_docxtbl_header(all_tables, headers)
+def tbl_get_fields(table, fields):
+    indexes = []
+    first_row = table.rows[0].cells
+    for i, c in enumerate(first_row):
+        if c.text in fields:
+            indexes.append(i)
 
-        if valid_tbl:
-            tbl = all_tables[tbl_index]
-            for r in tbl.rows:
-                entry = {}
-                for i, c in enumerate(r.cells):
-                    if i == 0:
-                        entry['id'] = c.text
-                    if i == 1:
-                        entry['tcin'] = c.text
-                    if i == 2:
-                        entry['tcout'] = c.text
-                    if i == 3:
-                        entry['character'] = c.text
-                    if i == 4:
-                        entry['line'] = c.text
-                data.append(entry)
+    return indexes
+
+
+def tbl_contains_all_fields(table, field_list):
+    indexes = []
+    first_row = table.rows[0].cells
+    for fields in field_list:
+        for field in fields[1]:
+            for i, c in enumerate(first_row):
+                if field.lower() == c.text.lower():
+                    indexes.append((fields[0], i))
+
+    return indexes
+
+
+def script_to_list(path, schema_path):
+    absolute_path = os.path.abspath(path).replace('\\', '/')
+    absolute_schema = os.path.abspath(schema_path).replace('\\', '/')
+    assert os.path.isfile(absolute_path), 'error: invalid path to .docx file: path is not a file'
+    assert os.path.isfile(absolute_schema), 'error: invalid path to schema file: schema_path is not a file'
+
+    data = []
+    print(absolute_schema)
+
+    headers = None
+    try:
+        with open(absolute_schema, 'r') as file:
+            headers = json.load(file)
+    except Exception as e:
+        print(e)
+
+    all_tables = Document(absolute_path).tables
+    valid_tables = []
+
+    flattened_schema = [(x['key'], x['synonyms']) for x in headers['fields']]
+
+    for tbl in all_tables:
+        indexes = tbl_contains_all_fields(tbl, flattened_schema)
+        if len(indexes) > 0:
+            valid_tables.append((indexes, tbl))
+
+    for item in valid_tables:
+        collect = []
+        rows = item[1].rows
+        for r in rows:
+            for i in item[0]:
+                collect.append(r.cells[i[1]].text)
+            data.append(list.copy(collect))
+            collect.clear()
+
+    data.pop(1)
+    data.insert()
 
     return data
 
@@ -86,7 +118,31 @@ def get_ext_files(paths, ext):
     return validated_paths
 
 
-def get_column_data(path, col):
+def tbl_column_by_name(path, name):
+    data = script_to_list(path)
+    if len(data) == 0:
+        return []
+
+    header = data.pop(0)
+    index = -1
+    for i, c in enumerate(header):
+        if c == name:
+            index = i
+
+    if index < 0:
+        return []
+
+    collect = []
+    for line in data:
+        k, v = line.items()
+        for i, c in enumerate(line):
+            if i == index:
+                collect.append(v)
+
+    return collect
+
+
+def tbl_column_by_index(path, index):
     data = script_to_list(path)
     if len(data) == 0:
         return []
@@ -95,11 +151,10 @@ def get_column_data(path, col):
 
     collect = []
     for line in data:
-        i = 0
-        for k_cell, v_cell in line.items():
-            if i == col:
-                collect.append(v_cell)
-            i += 1
+        k, v = line.items()
+        for i, e in enumerate(line):
+            if i == index:
+                collect.append(v)
 
     return collect
 

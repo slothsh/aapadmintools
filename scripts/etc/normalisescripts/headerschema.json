@@ -1,0 +1,63 @@
+{
+    "fields": [
+        {
+            "key": "id",
+            "synonyms": [
+                "sr. no.",
+                "#",
+                "number",
+                "serial number",
+                "sr. number",
+                "sr. #"
+            ]
+        },
+        {
+            "key": "tcin",
+            "synonyms": [
+                "timecode in",
+                "timecode start",
+                "start",
+                "tc start",
+                "tc in",
+                "begin",
+                "timecode begin",
+                "time in"
+            ]
+        },
+        {
+            "key": "tcout",
+            "synonyms": [
+                "timecode out",
+                "timecode end",
+                "end",
+                "tc end",
+                "tc out",
+                "end",
+                "timecode finish",
+                "finish",
+                "time out"
+            ]
+        },
+        {
+            "key": "speaker",
+            "synonyms": [
+                "character",
+                "name",
+                "character name",
+                "person"
+            ]
+        },
+        {
+            "key": "line",
+            "synonyms": [
+                "line",
+                "lines",
+                "dialogue",
+                "subtitle",
+                "subtitles",
+                "english subtitle",
+                "english subtitles"
+            ]
+        }
+    ]
+}
