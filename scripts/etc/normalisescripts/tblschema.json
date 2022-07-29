@@ -1,0 +1,35 @@
+{
+    "fields": [
+        {
+            "name": "id",
+            "type": "string",
+            "format": "default"
+        },
+        {
+            "name": "tcin",
+            "type": "string",
+            "format": "default",
+            "constraints": {
+                "pattern": "\\d\\d:\\d\\d:\\d\\d(:|;)\\d\\d"
+            }
+        },
+        {
+            "name": "tcout",
+            "type": "string",
+            "format": "default",
+            "constraints": {
+                "pattern": "\\d\\d:\\d\\d:\\d\\d(:|;)\\d\\d"
+            }
+        },
+        {
+            "name": "speaker",
+            "type": "string",
+            "format": "default"
+        },
+        {
+            "name": "line",
+            "type": "string",
+            "format": "default"
+        }
+    ]
+}

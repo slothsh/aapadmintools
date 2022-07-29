@@ -4,6 +4,7 @@ import os
 import json
 import tableschema as tblsh
 from docx import Document
+import sys
 
 
 def match_tblheaders(header, key, synonyms=[]):
@@ -71,8 +72,8 @@ def script_to_list(path, schema_path):
             data.append(list.copy(collect))
             collect.clear()
 
-    data.pop(1)
-    data.insert()
+    data.pop(0)
+    data.insert(0, [x['key'] for x in headers['fields']])
 
     return data
 
@@ -165,7 +166,7 @@ def validate_directory(path):
     return is_valid, path_abs
 
 
-def normalised_script(path):
+def normalised_script(path, schema_path='./tblschema.json'):
     parsed_lines = [{'id': '#',
                      'start': 'Time IN',
                      'end': 'Time OUT',
@@ -173,8 +174,13 @@ def normalised_script(path):
                      'age': 'Actor Name',
                      'line': 'English Subtitle'}]
 
-    data = script_to_list(path)
-    data.pop(0)
+    data = []
+    try:
+        data = script_to_list(path, './headerschema.json')
+    except Exception as e:
+        print(e)
+
+    tbl_data = tblsh.Table(data, schema=schema_path)
 
     collect = []
     additional = {}
@@ -182,15 +188,17 @@ def normalised_script(path):
     prev_start = ''
     prev_end = ''
 
-    for line in data:
+    for j, line in enumerate(tbl_data.iter()):
+        if j == 0:
+            continue
         i = 0
-        for k_cell, v_cell in line.items():
+        for l in line:
             if i == 1:
-                prev_start = fix_tc_frame_rate(v_cell.strip(), '25')
+                prev_start = fix_tc_frame_rate(l.strip(), '25')
             if i == 2:
-                prev_end = fix_tc_frame_rate(v_cell.strip(), '25')
+                prev_end = fix_tc_frame_rate(l.strip(), '25')
             if i == 3:
-                characters_raw = v_cell.split(',')
+                characters_raw = l.split(',')
                 increment = len(characters_raw) - 1
                 for c in characters_raw:
                     names = c.split('to')[0]
@@ -205,7 +213,7 @@ def normalised_script(path):
                     collect.append(dict.copy(additional))
                     additional.clear()
             if i == 4:
-                lines_raw = v_cell.split('- ')
+                lines_raw = l.split('- ')
                 li = 0
                 for ll in lines_raw:
                     stripped = ll.strip().replace('\n', ' ')
