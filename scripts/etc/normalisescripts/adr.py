@@ -37,14 +37,13 @@ def tbl_contains_all_fields(table, field_list):
     return indexes
 
 
-def script_to_list(path, schema_path):
+def script_to_list(path, schema_path='./headerschema.json'):
     absolute_path = os.path.abspath(path).replace('\\', '/')
     absolute_schema = os.path.abspath(schema_path).replace('\\', '/')
     assert os.path.isfile(absolute_path), 'error: invalid path to .docx file: path is not a file'
     assert os.path.isfile(absolute_schema), 'error: invalid path to schema file: schema_path is not a file'
 
     data = []
-    print(absolute_schema)
 
     headers = None
     try:
@@ -58,22 +57,25 @@ def script_to_list(path, schema_path):
 
     flattened_schema = [(x['key'], x['synonyms']) for x in headers['fields']]
 
+    collect_tables = []
     for tbl in all_tables:
         indexes = tbl_contains_all_fields(tbl, flattened_schema)
         if len(indexes) > 0:
-            valid_tables.append((indexes, tbl))
+            collect_rows = []
+            for r in tbl.rows:
+                collect_cols = []
+                for c in r.cells:
+                    collect_cols.append(c.text)
+                collect_rows.append(list.copy(collect_cols))
+            collect_tables.append((indexes, list.copy(collect_rows)))
 
-    for item in valid_tables:
-        collect = []
-        rows = item[1].rows
-        for r in rows:
+    collect = []
+    for item in collect_tables:
+        for r in item[1]:
             for i in item[0]:
-                collect.append(r.cells[i[1]].text)
+                collect.append((i[0], r[i[1]]))
             data.append(list.copy(collect))
             collect.clear()
-
-    data.pop(0)
-    data.insert(0, [x['key'] for x in headers['fields']])
 
     return data
 
@@ -144,7 +146,7 @@ def tbl_column_by_name(path, name):
 
 
 def tbl_column_by_index(path, index):
-    data = script_to_list(path)
+    data = script_to_list(path, './headerschema.json')
     if len(data) == 0:
         return []
 

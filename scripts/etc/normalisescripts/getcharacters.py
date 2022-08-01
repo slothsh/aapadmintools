@@ -6,6 +6,8 @@ import math
 import multiprocessing as mp
 import os
 import sys
+import itertools
+
 
 def split_characters(names):
     collect = []
@@ -25,11 +27,11 @@ def split_characters(names):
 def process(paths, ext, out, prefix, split_names, dry_run):
     for p in paths:
         name = os.path.basename(p).split('.')[0]
-        out_path = os.path.join(out, f'{prefix}_{name}_out.names')
-        raw_names = adr.get_column_data(p, 3)
+        out_path = os.path.join(out, f'{name}_{prefix}.names')
+        tbl_list = adr.script_to_list(p, './headerschema.json')
+        raw_names = itertools.chain.from_iterable([[y[1] for y in x if y[0] == 'speaker'] for x in tbl_list])
         if split_names is True:
             raw_names = set(split_characters(raw_names))
-        print(raw_names)
         if not dry_run:
             with open(out_path, 'w') as file:
                 for n in raw_names:
@@ -64,7 +66,7 @@ def group_items(items, size):
 def get_script_characters(path):
     names = []
     if os.path.isfile(path):
-        data = adr.script_to_list(path)
+        data = adr.script_to_list(path, './headerschema.json')
         for d in data:
             names.append(d['character'])
         return names
@@ -113,7 +115,7 @@ def main():
         proc = mp.Process(target=process, args=(p,
                                                 args.ext,
                                                 out_path,
-                                                f'process{i}',
+                                                f'cpu{i}',
                                                 args.split_names,
                                                 args.dry_run))
         pool.append(proc)
