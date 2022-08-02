@@ -2,6 +2,7 @@
 
 import argparse
 import adr
+import os
 
 
 def main():
@@ -10,12 +11,14 @@ def main():
                         help='files to un-fuck')
     parser.add_argument('--ext', type=str, nargs='?', default='docx',
                         help='specific files to process')
+    parser.add_argument('--schema', type=str, nargs=1, required=True,
+                        help='path to schema file to validate table data')
     args = parser.parse_args()
 
     all_data = adr.get_ext_files(args.paths, args.ext)
 
     for data_path in all_data:
-        all_lines = adr.normalised_script(data_path)
+        all_lines = adr.normalised_script(data_path, os.path.abspath(args.schema[0]))
         out_tokens = adr.file_names(data_path)
         file_name = f'{out_tokens[0].upper()}_{out_tokens[1].upper()}.gen.TAB'
         with open(file_name, 'w') as file:

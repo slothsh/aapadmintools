@@ -24,11 +24,11 @@ def split_characters(names):
     return collect
 
 
-def process(paths, ext, out, prefix, split_names, dry_run):
+def process(paths, schema, ext, out, prefix, split_names, dry_run):
     for p in paths:
         name = os.path.basename(p).split('.')[0]
         out_path = os.path.join(out, f'{name}_{prefix}.names')
-        tbl_list = adr.script_to_list(p, './headerschema.json')
+        tbl_list = adr.script_to_list(p, schema_path=schema)
         raw_names = itertools.chain.from_iterable([[y[1] for y in x if y[0] == 'speaker'] for x in tbl_list])
         if split_names is True:
             raw_names = set(split_characters(raw_names))
@@ -81,6 +81,8 @@ def main():
                         help='path to output directory to save files containing collected names')
     parser.add_argument('--ext', type=str, nargs='?', default='docx',
                         help='specific files to process')
+    parser.add_argument('--schema', type=str, required=True,
+                        help='path to schema file for selecting headers and validating tables')
     parser.add_argument('--write-type', type=str, nargs='?', default='a',
                         help='write to file can be a or w')
     parser.add_argument('--process-count', type=int, nargs='?', default=4,
@@ -113,6 +115,7 @@ def main():
     pool = []
     for i, p in enumerate(grouped_paths):
         proc = mp.Process(target=process, args=(p,
+                                                os.path.abspath(args.schema),
                                                 args.ext,
                                                 out_path,
                                                 f'cpu{i}',

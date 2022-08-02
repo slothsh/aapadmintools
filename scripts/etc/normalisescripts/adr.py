@@ -5,6 +5,58 @@ import json
 import tableschema as tblsh
 from docx import Document
 import sys
+from statistics import mean, mode
+from fuzzywuzzy import fuzz
+
+
+def round_to_nearest(x, base=10):
+    return base * round(x/base)
+
+
+def map_characters_to_castings(characters, castings):
+    list.sort(castings)
+    mapping = []
+    for ch in characters:
+        collect = []
+        for casting in castings:
+            split_casting = casting.split('\t')
+            if ch.strip().lower() == split_casting[0].strip().lower():
+                casting_range = split_casting[1].split('-')
+                gender = casting_range[0][0].strip()
+                lo = int(casting_range[0][1:].strip())
+                hi = int(casting_range[1].strip())
+                collect.append((gender, lo, hi))
+        mapping.append((ch.strip(), list.copy(collect)))
+        collect.clear()
+
+    return mapping
+
+
+def aggregate_castings(data):
+    aggregated = []
+    for d in data:
+        character = d[0]
+        if len(d[1]) > 0:
+            mode_gender = mode([x[0] for x in d[1]])
+            avg_lo = round_to_nearest(mean([x[1] for x in d[1]]), 5)
+            avg_hi = round_to_nearest(mean([x[2] for x in d[1]]), 5)
+            if avg_lo >= avg_hi:
+                age_dt = 5 if (mode_gender.upper() == 'M' or mode_gender.upper() == 'F') else 3
+                avg_lo = avg_hi - age_dt
+            aggregated.append((character, mode_gender.upper(), int(avg_lo), int(avg_hi)))
+
+    return aggregated
+
+def find_speaker_aliases(targets, names_list, ratio=70):
+    data = []
+    for t in targets:
+        collect = []
+        for n in names_list:
+            if fuzz.ratio(t.lower(), n.lower()) >= ratio and t.lower() != n.lower():
+                collect.append(n.lower())
+        data.append((t.lower(), list.copy(collect)))
+
+    return data
 
 
 def match_tblheaders(header, key, synonyms=[]):
@@ -37,7 +89,7 @@ def tbl_contains_all_fields(table, field_list):
     return indexes
 
 
-def script_to_list(path, schema_path='./headerschema.json'):
+def script_to_list(path, schema_path):
     absolute_path = os.path.abspath(path).replace('\\', '/')
     absolute_schema = os.path.abspath(schema_path).replace('\\', '/')
     assert os.path.isfile(absolute_path), 'error: invalid path to .docx file: path is not a file'
@@ -55,7 +107,7 @@ def script_to_list(path, schema_path='./headerschema.json'):
     all_tables = Document(absolute_path).tables
     valid_tables = []
 
-    flattened_schema = [(x['key'], x['synonyms']) for x in headers['fields']]
+    flattened_schema = [(x['key'], x['synonyms']) for x in headers['header_fields']]
 
     collect_tables = []
     for tbl in all_tables:
@@ -145,8 +197,8 @@ def tbl_column_by_name(path, name):
     return collect
 
 
-def tbl_column_by_index(path, index):
-    data = script_to_list(path, './headerschema.json')
+def tbl_column_by_index(path, index, schema_path):
+    data = script_to_list(path, schema_path)
     if len(data) == 0:
         return []
 
@@ -168,7 +220,7 @@ def validate_directory(path):
     return is_valid, path_abs
 
 
-def normalised_script(path, schema_path='./tblschema.json'):
+def normalised_script(path, schema_path):
     parsed_lines = [{'id': '#',
                      'start': 'Time IN',
                      'end': 'Time OUT',
@@ -178,11 +230,11 @@ def normalised_script(path, schema_path='./tblschema.json'):
 
     data = []
     try:
-        data = script_to_list(path, './headerschema.json')
+        data = script_to_list(path, schema_path)
     except Exception as e:
         print(e)
 
-    tbl_data = tblsh.Table(data, schema=schema_path)
+    print(data)
 
     collect = []
     additional = {}
@@ -190,7 +242,7 @@ def normalised_script(path, schema_path='./tblschema.json'):
     prev_start = ''
     prev_end = ''
 
-    for j, line in enumerate(tbl_data.iter()):
+    for j, line in enumerate(data):
         if j == 0:
             continue
         i = 0
