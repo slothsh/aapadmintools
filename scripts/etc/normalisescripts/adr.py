@@ -8,6 +8,13 @@ import sys
 from statistics import mean, mode
 from fuzzywuzzy import fuzz
 
+SPEAKER_CASTING_DEFAULT = 'CAST ME'
+LEVENSHTEIN_DT_DEFAULT = 75
+
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
 
 def round_to_nearest(x, base=10):
     return base * round(x/base)
@@ -18,15 +25,16 @@ def map_characters_to_castings(characters, castings):
     mapping = []
     for ch in characters:
         collect = []
+        names = ch.split('\t')
         for casting in castings:
             split_casting = casting.split('\t')
-            if ch.strip().lower() == split_casting[0].strip().lower():
+            if names[0].strip().lower() == split_casting[0].strip().lower():
                 casting_range = split_casting[1].split('-')
                 gender = casting_range[0][0].strip()
                 lo = int(casting_range[0][1:].strip())
                 hi = int(casting_range[1].strip())
                 collect.append((gender, lo, hi))
-        mapping.append((ch.strip(), list.copy(collect)))
+        mapping.append((names[0].strip(), list.copy([x.strip() for x in names[1:]]), list.copy(collect)))
         collect.clear()
 
     return mapping
@@ -36,27 +44,38 @@ def aggregate_castings(data):
     aggregated = []
     for d in data:
         character = d[0]
-        if len(d[1]) > 0:
-            mode_gender = mode([x[0] for x in d[1]])
-            avg_lo = round_to_nearest(mean([x[1] for x in d[1]]), 5)
-            avg_hi = round_to_nearest(mean([x[2] for x in d[1]]), 5)
+        if len(d[2]) > 0:
+            mode_gender = mode([x[0] for x in d[2]])
+            avg_lo = round_to_nearest(mean([x[1] for x in d[2]]), 5)
+            avg_hi = round_to_nearest(mean([x[2] for x in d[2]]), 5)
             if avg_lo >= avg_hi:
                 age_dt = 5 if (mode_gender.upper() == 'M' or mode_gender.upper() == 'F') else 3
                 avg_lo = avg_hi - age_dt
-            aggregated.append((character, mode_gender.upper(), int(avg_lo), int(avg_hi)))
+            aggregated.append((character, list.copy(d[1]), mode_gender.upper(), int(avg_lo), int(avg_hi)))
 
     return aggregated
 
-def find_speaker_aliases(targets, names_list, ratio=70):
+
+def find_speaker_aliases(targets, names_list, ratio=LEVENSHTEIN_DT_DEFAULT):
     data = []
     for t in targets:
         collect = []
+        used = []
         for n in names_list:
-            if fuzz.ratio(t.lower(), n.lower()) >= ratio and t.lower() != n.lower():
-                collect.append(n.lower())
+            alias_not_used = len([x for x in used if x.lower() == n.lower()]) == 0
+            current_ratio = fuzz.ratio(t.lower(), n.lower())
+
+            gte_ratio = current_ratio >= ratio
+            ne_current_name = t.lower() != n.lower()
+
+            if gte_ratio and ne_current_name and alias_not_used:
+                collect.append((current_ratio, n.lower()))
+                used.append(n.lower())
+
         data.append((t.lower(), list.copy(collect)))
 
     return data
+
 
 
 def match_tblheaders(header, key, synonyms=[]):
@@ -105,8 +124,6 @@ def script_to_list(path, schema_path):
         print(e)
 
     all_tables = Document(absolute_path).tables
-    valid_tables = []
-
     flattened_schema = [(x['key'], x['synonyms']) for x in headers['header_fields']]
 
     collect_tables = []
@@ -130,6 +147,29 @@ def script_to_list(path, schema_path):
             collect.clear()
 
     return data
+
+
+def speaker_to_casting(speaker, config, ratio=LEVENSHTEIN_DT_DEFAULT):
+    assert len(speaker) > 0
+    assert 'speakers' in config
+
+    cfg_data = [x for x in config['speakers']]
+
+    age_casting = SPEAKER_CASTING_DEFAULT
+    for entry in cfg_data:
+        gender = entry['casting']['gender']
+        lo = entry['casting']['lo']
+        hi = entry['casting']['hi']
+
+        if speaker == entry['name']:
+            return f'{gender}{lo}-{hi}'
+
+    fuzzed_names = sorted([(x["name"], fuzz.ratio(speaker, x["name"]), f'{x["casting"]["gender"]}{x["casting"]["lo"]}-{x["casting"]["hi"]}') for x in cfg_data if fuzz.ratio(speaker, x["name"]) > ratio], reverse=True, key=lambda x: x[1])
+    print(fuzzed_names)
+    if len(fuzzed_names) > 0:
+        return fuzzed_names[0][2]
+
+    return age_casting
 
 
 def fix_tc_frame_rate(tc, fps):
@@ -220,7 +260,7 @@ def validate_directory(path):
     return is_valid, path_abs
 
 
-def normalised_script(path, schema_path):
+def normalised_script(path, schema_path, speaker_config_path, ratio=LEVENSHTEIN_DT_DEFAULT):
     parsed_lines = [{'id': '#',
                      'start': 'Time IN',
                      'end': 'Time OUT',
@@ -228,13 +268,13 @@ def normalised_script(path, schema_path):
                      'age': 'Actor Name',
                      'line': 'English Subtitle'}]
 
-    data = []
+    data = None
+    config = None
     try:
         data = script_to_list(path, schema_path)
+        config = json.load(open(speaker_config_path, 'r'))
     except Exception as e:
         print(e)
-
-    print(data)
 
     collect = []
     additional = {}
@@ -242,17 +282,17 @@ def normalised_script(path, schema_path):
     prev_start = ''
     prev_end = ''
 
+    data.pop(0)
+
     for j, line in enumerate(data):
-        if j == 0:
-            continue
         i = 0
-        for l in line:
-            if i == 1:
-                prev_start = fix_tc_frame_rate(l.strip(), '25')
-            if i == 2:
-                prev_end = fix_tc_frame_rate(l.strip(), '25')
-            if i == 3:
-                characters_raw = l.split(',')
+        for title, value in line:
+            if title == 'tcin':
+                prev_start = fix_tc_frame_rate(value.strip(), '25')
+            if title == 'tcout':
+                prev_end = fix_tc_frame_rate(value.strip(), '25')
+            if title == 'speaker':
+                characters_raw = value.split(',')
                 increment = len(characters_raw) - 1
                 for c in characters_raw:
                     names = c.split('to')[0]
@@ -263,11 +303,11 @@ def normalised_script(path, schema_path):
                     additional['start'] = prev_start
                     additional['end'] = prev_end
                     additional['character'] = names.strip().upper()
-                    additional['age'] = 'CAST ME'
+                    additional['age'] = speaker_to_casting(names.strip(), config) 
                     collect.append(dict.copy(additional))
                     additional.clear()
-            if i == 4:
-                lines_raw = l.split('- ')
+            if title == 'line':
+                lines_raw = value.split('- ')
                 li = 0
                 for ll in lines_raw:
                     stripped = ll.strip().replace('\n', ' ')

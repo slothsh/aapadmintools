@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 
 import adr
+from adr import eprint
 import argparse
 import os
 import sys
-from statistics import mean, mode
-
-
-def eprint(*args, **kwargs):
-    print(*args, file=sys.stderr, **kwargs)
+import json
 
 
 def main():
@@ -60,10 +57,20 @@ def main():
     data = adr.map_characters_to_castings(characters, castings)
     aggregated = adr.aggregate_castings(data)
     sorted_aliases = adr.find_speaker_aliases([x[0] for x in aggregated], [x.strip() for x in aliases], args.ratio)
+    results = [
+            {
+                'name': v[0],
+                'nicknames': v[1],
+                'casting': v[2],
+                'aliases': v[3]
+            } for v in [x for x in zip([x[0] for x in aggregated],
+                                       [x[1] for x in aggregated],
+                                       [{'gender': x[2], 'lo': x[3], 'hi': x[4]} for x in aggregated],
+                                       [[{'ratio': y[0], 'alias': y[1]} for y in x[1]] for x in sorted_aliases])]
+    ]
 
-
-    for a in sorted_aliases:
-        print(a)
+    results_json = json.dumps({'speakers': sorted(results, key=lambda c: c['name'])}, indent=4)
+    print(results_json)
 
 
 if __name__ == "__main__":
