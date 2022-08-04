@@ -161,11 +161,15 @@ def speaker_to_casting(speaker, config, ratio=LEVENSHTEIN_DT_DEFAULT):
         lo = entry['casting']['lo']
         hi = entry['casting']['hi']
 
-        if speaker == entry['name']:
+        nicknames = [x.lower() for x in entry['nicknames']]
+        if speaker.lower() == entry['name'].lower() or speaker.lower() in nicknames:
             return f'{gender}{lo}-{hi}'
 
-    fuzzed_names = sorted([(x["name"], fuzz.ratio(speaker, x["name"]), f'{x["casting"]["gender"]}{x["casting"]["lo"]}-{x["casting"]["hi"]}') for x in cfg_data if fuzz.ratio(speaker, x["name"]) > ratio], reverse=True, key=lambda x: x[1])
-    print(fuzzed_names)
+    fuzzed_names = sorted([(x["name"],
+                            fuzz.ratio(speaker, x["name"]),
+                            f'{x["casting"]["gender"]}{x["casting"]["lo"]}-{x["casting"]["hi"]}') for x in cfg_data if fuzz.ratio(speaker, x["name"]) > ratio],
+                          reverse=True, key=lambda x: x[1])
+
     if len(fuzzed_names) > 0:
         return fuzzed_names[0][2]
 
@@ -289,8 +293,10 @@ def normalised_script(path, schema_path, speaker_config_path, ratio=LEVENSHTEIN_
         for title, value in line:
             if title == 'tcin':
                 prev_start = fix_tc_frame_rate(value.strip(), '25')
+
             if title == 'tcout':
                 prev_end = fix_tc_frame_rate(value.strip(), '25')
+
             if title == 'speaker':
                 characters_raw = value.split(',')
                 increment = len(characters_raw) - 1
@@ -303,16 +309,15 @@ def normalised_script(path, schema_path, speaker_config_path, ratio=LEVENSHTEIN_
                     additional['start'] = prev_start
                     additional['end'] = prev_end
                     additional['character'] = names.strip().upper()
-                    additional['age'] = speaker_to_casting(names.strip(), config) 
+                    additional['age'] = speaker_to_casting(names.strip(), config)
                     collect.append(dict.copy(additional))
                     additional.clear()
+
             if title == 'line':
                 lines_raw = value.split('- ')
-                li = 0
-                for ll in lines_raw:
+                for li, ll in enumerate(lines_raw):
                     stripped = ll.strip().replace('\n', ' ')
                     collect[min(li, len(collect) - 1)]['line'] = stripped
-                    li += 1
                 if li < len(collect):
                     for ii in range(li, len(collect)):
                         collect[ii]['line'] = '(NO LINE)'
