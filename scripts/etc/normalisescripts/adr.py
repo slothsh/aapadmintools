@@ -16,6 +16,26 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
+def group_items(items, size):
+    groups = []
+    group = []
+    assert len(items) >= size
+    n = 0
+    reverse_n = len(items) - 1
+    for i, item in enumerate(items):
+        group.append(item)
+
+        if n == size - 1 or reverse_n == 0:
+            groups.append(list.copy(group))
+            group.clear()
+            n = 0
+        else:
+            n += 1
+        reverse_n -= 1
+
+    return groups
+
+
 def round_to_nearest(x, base=10):
     return base * round(x/base)
 
@@ -163,7 +183,7 @@ def speaker_to_casting(speaker, config, ratio=LEVENSHTEIN_DT_DEFAULT):
 
         nicknames = [x.lower() for x in entry['nicknames']]
         if speaker.lower() == entry['name'].lower() or speaker.lower() in nicknames:
-            return f'{gender}{lo}-{hi}'
+            return entry['name'], f'{gender}{lo}-{hi}'
 
     fuzzed_names = sorted([(x["name"],
                             fuzz.ratio(speaker, x["name"]),
@@ -171,9 +191,9 @@ def speaker_to_casting(speaker, config, ratio=LEVENSHTEIN_DT_DEFAULT):
                           reverse=True, key=lambda x: x[1])
 
     if len(fuzzed_names) > 0:
-        return fuzzed_names[0][2]
+        return fuzzed_names[0][0], fuzzed_names[0][2]
 
-    return age_casting
+    return speaker, age_casting
 
 
 def fix_tc_frame_rate(tc, fps):
@@ -289,7 +309,6 @@ def normalised_script(path, schema_path, speaker_config_path, ratio=LEVENSHTEIN_
     data.pop(0)
 
     for j, line in enumerate(data):
-        i = 0
         for title, value in line:
             if title == 'tcin':
                 prev_start = fix_tc_frame_rate(value.strip(), '25')
@@ -301,28 +320,32 @@ def normalised_script(path, schema_path, speaker_config_path, ratio=LEVENSHTEIN_
                 characters_raw = value.split(',')
                 increment = len(characters_raw) - 1
                 for c in characters_raw:
-                    names = c.split('to')[0]
+                    names = c.lower().split(' to ')[0]
                     additional['id'] = str(id)
                     if len(characters_raw) > 1 and increment != 0:
                         id += 1
                         increment -= 1
                     additional['start'] = prev_start
                     additional['end'] = prev_end
-                    additional['character'] = names.strip().upper()
-                    additional['age'] = speaker_to_casting(names.strip(), config)
+                    corrected_speaker, age_range = speaker_to_casting(names.strip(), config)
+                    additional['character'] = corrected_speaker.upper()
+                    additional['age'] = age_range
                     collect.append(dict.copy(additional))
                     additional.clear()
 
             if title == 'line':
                 lines_raw = value.split('- ')
-                for li, ll in enumerate(lines_raw):
+                li = 0
+                for ll in lines_raw:
+                    collect_index = min(li, len(collect) - 1)
+                    current_speaker = collect[collect_index]['character']
                     stripped = ll.strip().replace('\n', ' ')
-                    collect[min(li, len(collect) - 1)]['line'] = stripped
+                    collect[collect_index]['line'] = f'[{current_speaker}] {stripped}'
+                    li += 1
                 if li < len(collect):
                     for ii in range(li, len(collect)):
-                        collect[ii]['line'] = '(NO LINE)'
+                        collect[ii]['line'] = f'[{collect[ii]["character"]}] (NO LINE)'
 
-            i += 1
         id += 1
 
         for c in collect:
