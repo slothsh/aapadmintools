@@ -10,7 +10,7 @@ from fuzzywuzzy import fuzz
 
 SPEAKER_CASTING_DEFAULT = 'CAST ME'
 LEVENSHTEIN_DT_DEFAULT = 75
-
+SPEAKER_NAME_DEFAULT = 'UNKNOWN'
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -170,7 +170,7 @@ def script_to_list(path, schema_path):
 
 
 def speaker_to_casting(speaker, config, ratio=LEVENSHTEIN_DT_DEFAULT):
-    assert len(speaker) > 0
+    assert len(speaker) > 0, speaker
     assert 'speakers' in config
 
     cfg_data = [x for x in config['speakers']]
@@ -178,8 +178,8 @@ def speaker_to_casting(speaker, config, ratio=LEVENSHTEIN_DT_DEFAULT):
     age_casting = SPEAKER_CASTING_DEFAULT
     for entry in cfg_data:
         gender = entry['casting']['gender']
-        lo = entry['casting']['lo']
-        hi = entry['casting']['hi']
+        lo = str(entry['casting']['lo']).rjust(2, '0')
+        hi = str(entry['casting']['hi']).rjust(2, '0')
 
         nicknames = [x.lower() for x in entry['nicknames']]
         if speaker.lower() == entry['name'].lower() or speaker.lower() in nicknames:
@@ -187,7 +187,7 @@ def speaker_to_casting(speaker, config, ratio=LEVENSHTEIN_DT_DEFAULT):
 
     fuzzed_names = sorted([(x["name"],
                             fuzz.ratio(speaker, x["name"]),
-                            f'{x["casting"]["gender"]}{x["casting"]["lo"]}-{x["casting"]["hi"]}') for x in cfg_data if fuzz.ratio(speaker, x["name"]) > ratio],
+                            f'{x["casting"]["gender"]}{str(x["casting"]["lo"]).rjust(2, "0")}-{str(x["casting"]["hi"]).rjust(2, "0")}') for x in cfg_data if fuzz.ratio(speaker, x["name"]) > ratio],
                           reverse=True, key=lambda x: x[1])
 
     if len(fuzzed_names) > 0:
@@ -317,10 +317,10 @@ def normalised_script(path, schema_path, speaker_config_path, ratio=LEVENSHTEIN_
                 prev_end = fix_tc_frame_rate(value.strip(), '25')
 
             if title == 'speaker':
-                characters_raw = value.split(',')
+                characters_raw = [SPEAKER_NAME_DEFAULT] if value.strip() == '' else [x for x in value.split(',') if x.strip() != '']
                 increment = len(characters_raw) - 1
                 for c in characters_raw:
-                    names = c.lower().split(' to ')[0]
+                    names = c[0] if c.strip() == '' else c.lower().split(' to ')[0]
                     additional['id'] = str(id)
                     if len(characters_raw) > 1 and increment != 0:
                         id += 1
