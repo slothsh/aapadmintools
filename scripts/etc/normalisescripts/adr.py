@@ -97,7 +97,6 @@ def find_speaker_aliases(targets, names_list, ratio=LEVENSHTEIN_DT_DEFAULT):
     return data
 
 
-
 def match_tblheaders(header, key, synonyms=[]):
     for i, c in enumerate(header.cells):
         for s in synonyms:
